@@ -2,6 +2,8 @@
 
 Zoomer application for everyone on Linux.
 
+![](./demo.gif)
+
 ## Features
 
 - **Multi-backend support**: Automatic selection between wlr-screencopy, xdg-desktop-portal, and X11
