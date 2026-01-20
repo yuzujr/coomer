@@ -8,6 +8,9 @@ Zoomer application for everyone on Linux.
 
 ## Installation
 
+### Releases
+Install from [releases](https://github.com/yuzujr/coomer/releases).
+
 ### Build from Source
 
 **Requirements**: Linux, xmake, C++17 compiler
