@@ -106,9 +106,9 @@ int main(int argc, char** argv) {
 
     if (!backend->isAvailable()) {
         if (options.backend == BackendKind::Wlr) {
-            LOG_ERROR("compositor 未提供 wlr-screencopy");
+            LOG_ERROR("compositor does not support wlr-screencopy");
         } else if (options.backend == BackendKind::Portal) {
-            LOG_ERROR("缺少 xdg-desktop-portal 或后端");
+            LOG_ERROR("xdg-desktop-portal is missing or unavailable");
         } else if (options.backend == BackendKind::X11) {
             LOG_ERROR(
                 "X11 backend unavailable (DISPLAY missing or access denied)");

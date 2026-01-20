@@ -99,7 +99,7 @@ private:
                 LOG_DEBUG("auto backend selected: wlr-screencopy");
                 return selected_.get();
             }
-            LOG_INFO("compositor 未提供 wlr-screencopy，尝试 portal");
+            LOG_INFO("compositor does not support wlr-screencopy, trying portal");
 
             auto portal = createPortal();
             if (portal && portal->isAvailable()) {
