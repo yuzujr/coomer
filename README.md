@@ -10,7 +10,7 @@ Zoomer application for everyone on Linux.
 
 ### Build from Source
 
-**Requirements**: Linux, xmake, C++ latest compiler
+**Requirements**: Linux, xmake, C++17 compiler
 
 ```bash
 git clone https://github.com/yuzujr/coomer

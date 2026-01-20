@@ -1,7 +1,7 @@
 set_project("coomer")
 set_version("0.1.0")
 
-set_languages("c17", "cxx26")
+set_languages("c17", "cxx17")
 add_rules("mode.debug", "mode.release")
 
 option("x11")
