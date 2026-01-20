@@ -106,7 +106,15 @@ public:
 
         XMapRaised(display_, window_);
         XFlush(display_);
+        
+        // Wait for window to be mapped before setting focus to avoid BadMatch
+        XSync(display_, False);
+        
+        // SetInputFocus may fail if window is not yet viewable, ignore errors
+        XSetErrorHandler([](Display*, XErrorEvent*) { return 0; });
         XSetInputFocus(display_, window_, RevertToParent, CurrentTime);
+        XSync(display_, False);
+        XSetErrorHandler(nullptr);
 
         auto glXCreateContextAttribsARB = reinterpret_cast<GLXContext (*)(
             Display*, GLXFBConfig, GLXContext, Bool, const int*)>(
@@ -187,9 +195,9 @@ public:
                     } else if (ev.xbutton.button == Button3) {
                         input_.mouseRight = true;
                     } else if (ev.xbutton.button == Button4) {
-                        input_.wheelDelta += 1.0;
-                    } else if (ev.xbutton.button == Button5) {
                         input_.wheelDelta -= 1.0;
+                    } else if (ev.xbutton.button == Button5) {
+                        input_.wheelDelta += 1.0;
                     }
                     break;
                 }
