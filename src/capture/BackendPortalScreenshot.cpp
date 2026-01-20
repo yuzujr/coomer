@@ -87,6 +87,9 @@ bool parseResponse(DBusMessage* msg, std::string& outUri) {
 
 class PortalScreenshotBackend final : public ICaptureBackend {
 public:
+    explicit PortalScreenshotBackend(bool interactive)
+        : interactive_(interactive) {}
+
     std::string name() const override {
         return "portal-screenshot";
     }
@@ -152,9 +155,16 @@ public:
 
         DBusMessageIter dict;
         dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &dict);
-        dbus_bool_t interactive = 0;
+        // Interactive mode: show dialog for user to select monitor/region
+        // Non-interactive: capture all monitors automatically
+        dbus_bool_t interactive = interactive_ ? 1 : 0;
         appendDictEntry(&dict, "interactive", DBUS_TYPE_BOOLEAN, &interactive,
                         "b");
+        if (interactive_) {
+            // Modal=true makes the dialog appear on top
+            dbus_bool_t modal = 1;
+            appendDictEntry(&dict, "modal", DBUS_TYPE_BOOLEAN, &modal, "b");
+        }
         std::string token =
             "coomer" +
             std::to_string(static_cast<unsigned long long>(
@@ -258,10 +268,14 @@ public:
 
         return result;
     }
+
+private:
+    bool interactive_;
 };
 
-std::unique_ptr<ICaptureBackend> CreateBackendPortalScreenshot() {
-    return std::make_unique<PortalScreenshotBackend>();
+std::unique_ptr<ICaptureBackend> CreateBackendPortalScreenshot(
+    bool interactive) {
+    return std::make_unique<PortalScreenshotBackend>(interactive);
 }
 
 }  // namespace coomer

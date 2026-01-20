@@ -17,6 +17,8 @@ static void printUsage(const char* exe) {
                  "the backend (x11/wlr only)\n"
               << "  --overlay              Wayland layer-shell overlay "
                  "(wlr/portal only)\n"
+              << "  --portal-interactive   Enable interactive mode for portal "
+                 "(show selection dialog)\n"
               << "  --no-spotlight         Disable spotlight mode\n"
               << "  --debug                Enable debug logging\n"
               << "  --help, -h             Show this help message\n"
@@ -75,6 +77,8 @@ bool parseCli(int argc, char** argv, CliOptions& out, std::string& err) {
             out.noSpotlight = true;
         } else if (arg == "--overlay") {
             out.overlay = true;
+        } else if (arg == "--portal-interactive") {
+            out.portalInteractive = true;
         } else if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
             std::exit(0);

@@ -15,6 +15,7 @@ struct CliOptions {
     bool debug = false;
     bool noSpotlight = false;
     bool overlay = false;
+    bool portalInteractive = false;
 };
 
 bool parseCli(int argc, char** argv, CliOptions& out, std::string& err);

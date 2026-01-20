@@ -6,6 +6,7 @@
 
 namespace coomer {
 
-std::unique_ptr<ICaptureBackend> CreateBackendPortalScreenshot();
+std::unique_ptr<ICaptureBackend> CreateBackendPortalScreenshot(
+    bool interactive = false);
 
 }  // namespace coomer

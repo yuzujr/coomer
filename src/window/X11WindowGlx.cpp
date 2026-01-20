@@ -106,12 +106,14 @@ public:
 
         XMapRaised(display_, window_);
         XFlush(display_);
-        
+
         // Wait for window to be mapped before setting focus to avoid BadMatch
         XSync(display_, False);
-        
+
         // SetInputFocus may fail if window is not yet viewable, ignore errors
-        XSetErrorHandler([](Display*, XErrorEvent*) { return 0; });
+        XSetErrorHandler([](Display*, XErrorEvent*) {
+            return 0;
+        });
         XSetInputFocus(display_, window_, RevertToParent, CurrentTime);
         XSync(display_, False);
         XSetErrorHandler(nullptr);

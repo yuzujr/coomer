@@ -34,10 +34,11 @@ std::unique_ptr<ICaptureBackend> createWlr() {
 #endif
 }
 
-std::unique_ptr<ICaptureBackend> createPortal() {
+std::unique_ptr<ICaptureBackend> createPortal(bool interactive = false) {
 #if defined(COOMER_HAS_PORTAL)
-    return CreateBackendPortalScreenshot();
+    return CreateBackendPortalScreenshot(interactive);
 #else
+    (void)interactive;
     return nullptr;
 #endif
 }
@@ -46,6 +47,9 @@ std::unique_ptr<ICaptureBackend> createPortal() {
 
 class BackendAuto final : public ICaptureBackend {
 public:
+    explicit BackendAuto(bool portalInteractive)
+        : portalInteractive_(portalInteractive) {}
+
     std::string name() const override {
         auto backend = selectBackend();
         return backend ? backend->name() : "auto";
@@ -99,9 +103,10 @@ private:
                 LOG_DEBUG("auto backend selected: wlr-screencopy");
                 return selected_.get();
             }
-            LOG_INFO("compositor does not support wlr-screencopy, trying portal");
+            LOG_INFO(
+                "compositor does not support wlr-screencopy, trying portal");
 
-            auto portal = createPortal();
+            auto portal = createPortal(portalInteractive_);
             if (portal && portal->isAvailable()) {
                 selected_ = std::move(portal);
                 selectedKind_ = BackendKind::Portal;
@@ -127,12 +132,14 @@ private:
 
     mutable std::unique_ptr<ICaptureBackend> selected_;
     mutable BackendKind selectedKind_ = BackendKind::Auto;
+    bool portalInteractive_;
 };
 
-std::unique_ptr<ICaptureBackend> CreateBackend(BackendKind kind) {
+std::unique_ptr<ICaptureBackend> CreateBackend(BackendKind kind,
+                                               bool portalInteractive) {
     switch (kind) {
         case BackendKind::Auto:
-            return std::make_unique<BackendAuto>();
+            return std::make_unique<BackendAuto>(portalInteractive);
         case BackendKind::X11: {
             auto backend = createX11();
             if (!backend) {
@@ -148,7 +155,7 @@ std::unique_ptr<ICaptureBackend> CreateBackend(BackendKind kind) {
             return backend;
         }
         case BackendKind::Portal: {
-            auto backend = createPortal();
+            auto backend = createPortal(portalInteractive);
             if (!backend) {
                 LOG_ERROR("portal backend disabled at build time");
             }

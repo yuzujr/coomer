@@ -33,6 +33,7 @@ Options:
   --monitor <name>       Select monitor/output by name (x11/wlr only)
   --list-monitors        List monitors/outputs visible to the backend (x11/wlr only)
   --overlay              Wayland layer-shell overlay (wlr/portal only)
+  --portal-interactive   Enable interactive mode for portal (show selection dialog)
   --no-spotlight         Disable spotlight mode
   --debug                Enable debug logging
   --help, -h             Show this help message
@@ -41,6 +42,8 @@ Hotkeys:
   Q or A or Right click: quit
   Hold Ctrl: spotlight (Ctrl + wheel to resize)
 ```
+
+**Note**: On Wayland with multiple monitors, the portal backend only supports fullscreen capture, which may include unwanted areas. Use `--portal-interactive` to show a selection dialog on each launch, allowing you to choose the capture mode.
 
 ## Backend Selection
 

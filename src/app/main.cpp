@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
 
     setDebugLogging(options.debug);
 
-    auto backend = CreateBackend(options.backend);
+    auto backend = CreateBackend(options.backend, options.portalInteractive);
     if (!backend) {
         LOG_ERROR("failed to create backend");
         closeFileLogging();
