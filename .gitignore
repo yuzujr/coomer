@@ -1,0 +1,5 @@
+.xmake/
+.cache/
+
+build/
+generated/

@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Create tag for manual release
+      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        if git rev-parse "refs/tags/${{ github.event.inputs.tag }}" >/dev/null 2>&1; then
+          echo "Tag '${{ github.event.inputs.tag }}' already exists."
+        else
+          git tag "${{ github.event.inputs.tag }}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${{ github.event.inputs.tag }}"
+        fi
+    
+    - name: Get version from tag
+      id: get_version
+      run: |
+        if [ -n "${{ github.event.inputs.tag }}" ]; then
+          VERSION="${{ github.event.inputs.tag }}"
+          VERSION="${VERSION#v}"
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libwayland-dev \
+          wayland-protocols \
+          libxkbcommon-dev \
+          libegl1-mesa-dev \
+          libgl1-mesa-dev \
+          libx11-dev \
+          libxi-dev \
+          libxrandr-dev \
+          libdbus-1-dev \
+          libglx-dev \
+          libglvnd-dev
+    
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+    
+    - name: Build
+      run: |
+        xmake config -m release -y
+        xmake build
+    
+    - name: Package binary
+      run: |
+        mkdir -p release
+        cp build/linux/x86_64/release/coomer release/
+        cp README.md LICENSE release/
+        cd release
+        tar -czf coomer-v${{ steps.get_version.outputs.VERSION }}-linux-x86_64.tar.gz *
+        cd ..
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+        target_commitish: ${{ github.sha }}
+        files: release/coomer-v${{ steps.get_version.outputs.VERSION }}-linux-x86_64.tar.gz
+        body: |
+          ## coomer v${{ steps.get_version.outputs.VERSION }}
+          
+          Zoomer application for everyone on Linux.
+          
+          ### Installation
+          
+          ```bash
+          tar -xzf coomer-v${{ steps.get_version.outputs.VERSION }}-linux-x86_64.tar.gz
+          sudo mv coomer /usr/local/bin/
+          ```
+          
+          See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed documentation.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
