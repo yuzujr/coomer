@@ -13,6 +13,26 @@ Zoomer application for everyone on Linux.
 ### Releases
 Install from [releases](https://github.com/yuzujr/coomer/releases).
 
+### Arch Linux (AUR)
+* `coomer` — build from source (xmake)
+* `coomer-bin` — prebuilt from Releases
+
+Install one of them:
+
+use `paru`:
+```bash
+paru -S coomer
+# or
+paru -S coomer-bin
+```
+
+or use `yay`:
+```bash
+yay -S coomer
+# or
+yay -S coomer-bin
+```
+
 ### Build from Source
 
 **Requirements**: Linux, xmake, C++17 compiler
