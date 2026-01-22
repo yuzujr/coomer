@@ -1,0 +1,53 @@
+# bash completion for coomer
+
+_coomer() {
+  local cur prev
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  case "$prev" in
+    --backend)
+      COMPREPLY=( $(compgen -W "auto x11 wlr portal" -- "$cur") )
+      return 0
+      ;;
+    --monitor)
+      local backend=""
+      for ((i=1; i < COMP_CWORD; i++)); do
+        if [[ "${COMP_WORDS[i]}" == "--backend" && $((i+1)) -lt COMP_CWORD ]]; then
+          backend="${COMP_WORDS[i+1]}"
+          break
+        fi
+      done
+
+      local list
+      if [[ -n "$backend" ]]; then
+        list="$(coomer --backend "$backend" --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"
+      else
+        list="$(coomer --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"
+      fi
+
+      COMPREPLY=( $(compgen -W "$list" -- "$cur") )
+      return 0
+      ;;
+  esac
+
+  if [[ "$cur" == -* ]]; then
+    COMPREPLY=( $(compgen -W "
+      --backend
+      --monitor
+      --list-monitors
+      --overlay
+      --portal-interactive
+      --no-spotlight
+      --debug
+      --help
+      -h
+    " -- "$cur") )
+    return 0
+  fi
+
+  COMPREPLY=()
+}
+
+complete -F _coomer coomer
+
