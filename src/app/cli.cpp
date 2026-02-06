@@ -12,7 +12,7 @@ static void printUsage(const char* exe) {
               << "  --backend <mode>       Capture backend: "
                  "auto|x11|wlr|portal (default: auto)\n"
               << "  --monitor <name>       Select monitor/output by name "
-                 "(x11/wlr only)\n"
+                 "(x11/wlr only, use 'all' to capture all monitors)\n"
               << "  --list-monitors        List monitors/outputs visible to "
                  "the backend (x11/wlr only)\n"
               << "  --overlay              Wayland layer-shell overlay "
@@ -25,6 +25,8 @@ static void printUsage(const char* exe) {
               << "\n"
               << "Hotkeys:\n"
               << "  Q or A or Right click: quit\n"
+              << "  Hold Left click: pan\n"
+              << "  Scroll wheel: zoom\n"
               << "  Hold Ctrl: spotlight (Ctrl + wheel to resize)\n";
 }
 

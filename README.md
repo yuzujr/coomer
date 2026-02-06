@@ -7,6 +7,7 @@ Zoomer application for everyone on Linux.
 ## Features
 
 - **Multi-backend support**: Automatic selection between wlr-screencopy, xdg-desktop-portal, and X11
+- **Multi-monitor support**: Capture specific monitor or all monitors (X11/wlr)
 
 ## Installation
 
@@ -50,7 +51,7 @@ Usage: coomer [options]
 
 Options:
   --backend <mode>       Capture backend: auto|x11|wlr|portal (default: auto)
-  --monitor <name>       Select monitor/output by name (x11/wlr only)
+  --monitor <name>       Select monitor/output by name (x11/wlr only, use 'all' to capture all monitors)
   --list-monitors        List monitors/outputs visible to the backend (x11/wlr only)
   --overlay              Wayland layer-shell overlay (wlr/portal only)
   --portal-interactive   Enable interactive mode for portal (show selection dialog)
@@ -60,6 +61,8 @@ Options:
 
 Hotkeys:
   Q or A or Right click: quit
+  Hold Left click: pan
+  Scroll wheel: zoom
   Hold Ctrl: spotlight (Ctrl + wheel to resize)
 ```
 

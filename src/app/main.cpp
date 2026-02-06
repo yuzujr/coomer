@@ -180,6 +180,45 @@ int main(int argc, char** argv) {
     camera.zoom = 1.0f;
     camera.panX = 0.0f;
     camera.panY = 0.0f;
+    if (options.monitor && *options.monitor == "all" &&
+        capture.selectedMonitorIndex >= 0 &&
+        capture.selectedMonitorIndex <
+            static_cast<int>(capture.monitors.size())) {
+        bool hasBounds = false;
+        int minX = 0;
+        int minY = 0;
+        int maxX = 0;
+        int maxY = 0;
+        for (const auto& mon : capture.monitors) {
+            if (mon.w <= 0 || mon.h <= 0) {
+                continue;
+            }
+            int left = mon.x;
+            int top = mon.y;
+            int right = left + mon.w;
+            int bottom = top + mon.h;
+            if (!hasBounds) {
+                minX = left;
+                minY = top;
+                maxX = right;
+                maxY = bottom;
+                hasBounds = true;
+            } else {
+                minX = std::min(minX, left);
+                minY = std::min(minY, top);
+                maxX = std::max(maxX, right);
+                maxY = std::max(maxY, bottom);
+            }
+        }
+        int totalW = hasBounds ? (maxX - minX) : 0;
+        int totalH = hasBounds ? (maxY - minY) : 0;
+        if (hasBounds && totalW == capture.image.w &&
+            totalH == capture.image.h) {
+            const auto& mon = capture.monitors[capture.selectedMonitorIndex];
+            camera.panX = static_cast<float>(minX - mon.x);
+            camera.panY = static_cast<float>(minY - mon.y);
+        }
+    }
 
     float panVelX = 0.0f;
     float panVelY = 0.0f;

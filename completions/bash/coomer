@@ -26,6 +26,7 @@ _coomer() {
         list="$(coomer --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"
       fi
 
+      list="all $list"
       COMPREPLY=( $(compgen -W "$list" -- "$cur") )
       return 0
       ;;
@@ -50,4 +51,3 @@ _coomer() {
 }
 
 complete -F _coomer coomer
-

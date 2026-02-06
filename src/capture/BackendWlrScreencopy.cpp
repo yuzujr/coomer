@@ -118,6 +118,75 @@ struct FrameCapture {
     uint32_t stride = 0;
 };
 
+ImageRGBA scaleImageBilinear(const ImageRGBA& src, int dstW, int dstH) {
+    ImageRGBA dst;
+    dst.w = dstW;
+    dst.h = dstH;
+    if (dstW <= 0 || dstH <= 0 || src.w <= 0 || src.h <= 0 ||
+        src.rgba.empty()) {
+        return dst;
+    }
+    dst.rgba.resize(static_cast<size_t>(dstW) * static_cast<size_t>(dstH) *
+                    4u);
+
+    float scaleX = 0.0f;
+    float scaleY = 0.0f;
+    if (dstW > 1 && src.w > 1) {
+        scaleX = static_cast<float>(src.w - 1) / static_cast<float>(dstW - 1);
+    }
+    if (dstH > 1 && src.h > 1) {
+        scaleY = static_cast<float>(src.h - 1) / static_cast<float>(dstH - 1);
+    }
+
+    for (int y = 0; y < dstH; ++y) {
+        float srcYf = scaleY * static_cast<float>(y);
+        int y0 = static_cast<int>(srcYf);
+        int y1 = std::min(y0 + 1, src.h - 1);
+        float fy = srcYf - static_cast<float>(y0);
+        for (int x = 0; x < dstW; ++x) {
+            float srcXf = scaleX * static_cast<float>(x);
+            int x0 = static_cast<int>(srcXf);
+            int x1 = std::min(x0 + 1, src.w - 1);
+            float fx = srcXf - static_cast<float>(x0);
+
+            size_t dstIdx =
+                (static_cast<size_t>(y) * static_cast<size_t>(dstW) +
+                 static_cast<size_t>(x)) *
+                4u;
+            size_t idx00 =
+                (static_cast<size_t>(y0) * static_cast<size_t>(src.w) +
+                 static_cast<size_t>(x0)) *
+                4u;
+            size_t idx10 =
+                (static_cast<size_t>(y0) * static_cast<size_t>(src.w) +
+                 static_cast<size_t>(x1)) *
+                4u;
+            size_t idx01 =
+                (static_cast<size_t>(y1) * static_cast<size_t>(src.w) +
+                 static_cast<size_t>(x0)) *
+                4u;
+            size_t idx11 =
+                (static_cast<size_t>(y1) * static_cast<size_t>(src.w) +
+                 static_cast<size_t>(x1)) *
+                4u;
+
+            for (int c = 0; c < 4; ++c) {
+                float v00 = static_cast<float>(src.rgba[idx00 + c]);
+                float v10 = static_cast<float>(src.rgba[idx10 + c]);
+                float v01 = static_cast<float>(src.rgba[idx01 + c]);
+                float v11 = static_cast<float>(src.rgba[idx11 + c]);
+                float v0 = v00 + (v10 - v00) * fx;
+                float v1 = v01 + (v11 - v01) * fx;
+                float v = v0 + (v1 - v0) * fy;
+                int vi = static_cast<int>(v + 0.5f);
+                dst.rgba[dstIdx + c] =
+                    static_cast<uint8_t>(std::clamp(vi, 0, 255));
+            }
+        }
+    }
+    return dst;
+}
+
 void frameBuffer(void* data, zwlr_screencopy_frame_v1*, uint32_t format,
                  uint32_t width, uint32_t height, uint32_t stride) {
     auto* capture = static_cast<FrameCapture*>(data);
@@ -339,6 +408,71 @@ void cleanupContext(WlrContext& ctx) {
     }
 }
 
+bool captureOutputImage(WlrContext& ctx, wl_output* output, ImageRGBA& out) {
+    FrameCapture capture;
+    capture.shm = ctx.shm;
+    capture.frame =
+        zwlr_screencopy_manager_v1_capture_output(ctx.manager, 0, output);
+    zwlr_screencopy_frame_v1_add_listener(capture.frame, &kFrameListener,
+                                          &capture);
+
+    while (!capture.ready && !capture.failed) {
+        wl_display_dispatch(ctx.display);
+    }
+
+    bool ok = false;
+    if (capture.failed || !capture.buffer.data) {
+        LOG_ERROR("wlr: capture failed");
+    } else if (capture.format != WL_SHM_FORMAT_ARGB8888 &&
+               capture.format != WL_SHM_FORMAT_XRGB8888) {
+        LOG_ERROR("wlr: unsupported shm format %u", capture.format);
+    } else {
+        int width = static_cast<int>(capture.width);
+        int height = static_cast<int>(capture.height);
+        out.w = width;
+        out.h = height;
+        out.rgba.resize(static_cast<size_t>(width) *
+                        static_cast<size_t>(height) * 4u);
+
+        const uint32_t* src = static_cast<uint32_t*>(capture.buffer.data);
+        for (int y = 0; y < height; ++y) {
+            int srcY = capture.yInvert ? (height - 1 - y) : y;
+            const uint32_t* row = reinterpret_cast<const uint32_t*>(
+                reinterpret_cast<const uint8_t*>(src) +
+                static_cast<size_t>(capture.stride) * srcY);
+            for (int x = 0; x < width; ++x) {
+                uint32_t pixel = row[x];
+                uint8_t a = (capture.format == WL_SHM_FORMAT_XRGB8888)
+                                ? 255
+                                : ((pixel >> 24) & 0xFF);
+                uint8_t r = (pixel >> 16) & 0xFF;
+                uint8_t g = (pixel >> 8) & 0xFF;
+                uint8_t b = (pixel >> 0) & 0xFF;
+                size_t idx = (static_cast<size_t>(y) *
+                                  static_cast<size_t>(width) +
+                              static_cast<size_t>(x)) *
+                             4u;
+                out.rgba[idx + 0] = r;
+                out.rgba[idx + 1] = g;
+                out.rgba[idx + 2] = b;
+                out.rgba[idx + 3] = a;
+            }
+        }
+        ok = true;
+    }
+
+    if (capture.buffer.buffer) {
+        wl_buffer_destroy(capture.buffer.buffer);
+    }
+    if (capture.buffer.data) {
+        munmap(capture.buffer.data, capture.buffer.size);
+    }
+    if (capture.frame) {
+        zwlr_screencopy_frame_v1_destroy(capture.frame);
+    }
+    return ok;
+}
+
 }  // namespace
 
 class WlrScreencopyBackend final : public ICaptureBackend {
@@ -391,7 +525,8 @@ public:
         }
 
         int selected = -1;
-        if (monitorNameHint) {
+        bool captureAll = monitorNameHint && (*monitorNameHint == "all");
+        if (monitorNameHint && !captureAll) {
             for (size_t i = 0; i < ctx.outputs.size(); ++i) {
                 if (ctx.outputs[i]->info.name == *monitorNameHint) {
                     selected = static_cast<int>(i);
@@ -404,75 +539,135 @@ public:
         }
         result.selectedMonitorIndex = selected;
 
-        if (selected < 0 || selected >= static_cast<int>(ctx.outputs.size())) {
-            LOG_ERROR("wlr: no output selected for capture");
-            cleanupContext(ctx);
-            return result;
-        }
+        if (captureAll) {
+            if (ctx.outputs.empty()) {
+                LOG_ERROR("wlr: no outputs available for capture");
+                cleanupContext(ctx);
+                return result;
+            }
 
-        FrameCapture capture;
-        capture.shm = ctx.shm;
-        capture.frame = zwlr_screencopy_manager_v1_capture_output(
-            ctx.manager, 0, ctx.outputs[selected]->output);
-        zwlr_screencopy_frame_v1_add_listener(capture.frame, &kFrameListener,
-                                              &capture);
-
-        // Wait for the compositor to announce buffer parameters and signal
-        // ready/failed.
-        while (!capture.ready && !capture.failed) {
-            wl_display_dispatch(ctx.display);
-        }
-
-        if (capture.failed || !capture.buffer.data) {
-            LOG_ERROR("wlr: capture failed");
-        } else {
-            if (capture.format != WL_SHM_FORMAT_ARGB8888 &&
-                capture.format != WL_SHM_FORMAT_XRGB8888) {
-                LOG_ERROR("wlr: unsupported shm format %u", capture.format);
-            } else {
-                int width = static_cast<int>(capture.width);
-                int height = static_cast<int>(capture.height);
-                result.image.w = width;
-                result.image.h = height;
-                result.image.rgba.resize(static_cast<size_t>(width) *
-                                         static_cast<size_t>(height) * 4u);
-
-                const uint32_t* src =
-                    static_cast<uint32_t*>(capture.buffer.data);
-                for (int y = 0; y < height; ++y) {
-                    int srcY = capture.yInvert ? (height - 1 - y) : y;
-                    const uint32_t* row = reinterpret_cast<const uint32_t*>(
-                        reinterpret_cast<const uint8_t*>(src) +
-                        static_cast<size_t>(capture.stride) * srcY);
-                    for (int x = 0; x < width; ++x) {
-                        uint32_t pixel = row[x];
-                        uint8_t a = (capture.format == WL_SHM_FORMAT_XRGB8888)
-                                        ? 255
-                                        : ((pixel >> 24) & 0xFF);
-                        uint8_t r = (pixel >> 16) & 0xFF;
-                        uint8_t g = (pixel >> 8) & 0xFF;
-                        uint8_t b = (pixel >> 0) & 0xFF;
-                        size_t idx = (static_cast<size_t>(y) *
-                                          static_cast<size_t>(width) +
-                                      static_cast<size_t>(x)) *
-                                     4u;
-                        result.image.rgba[idx + 0] = r;
-                        result.image.rgba[idx + 1] = g;
-                        result.image.rgba[idx + 2] = b;
-                        result.image.rgba[idx + 3] = a;
-                    }
+            std::vector<ImageRGBA> images;
+            images.resize(ctx.outputs.size());
+            for (size_t i = 0; i < ctx.outputs.size(); ++i) {
+                if (!captureOutputImage(ctx, ctx.outputs[i]->output,
+                                        images[i])) {
+                    LOG_ERROR("wlr: capture failed for output %s",
+                              ctx.outputs[i]->info.name.c_str());
                 }
             }
-        }
 
-        if (capture.buffer.buffer) {
-            wl_buffer_destroy(capture.buffer.buffer);
-        }
-        if (capture.buffer.data) {
-            munmap(capture.buffer.data, capture.buffer.size);
-        }
-        if (capture.frame) {
-            zwlr_screencopy_frame_v1_destroy(capture.frame);
+            bool hasBounds = false;
+            int minX = 0;
+            int minY = 0;
+            int maxX = 0;
+            int maxY = 0;
+            std::vector<int> targetW(ctx.outputs.size(), 0);
+            std::vector<int> targetH(ctx.outputs.size(), 0);
+            for (size_t i = 0; i < result.monitors.size(); ++i) {
+                int w = result.monitors[i].w;
+                int h = result.monitors[i].h;
+                if ((w <= 0 || h <= 0) && i < images.size()) {
+                    w = images[i].w;
+                    h = images[i].h;
+                }
+                if (result.monitors[i].w <= 0) {
+                    result.monitors[i].w = w;
+                }
+                if (result.monitors[i].h <= 0) {
+                    result.monitors[i].h = h;
+                }
+                targetW[i] = w;
+                targetH[i] = h;
+                if (w <= 0 || h <= 0) {
+                    continue;
+                }
+                int left = result.monitors[i].x;
+                int top = result.monitors[i].y;
+                int right = left + w;
+                int bottom = top + h;
+                if (!hasBounds) {
+                    minX = left;
+                    minY = top;
+                    maxX = right;
+                    maxY = bottom;
+                    hasBounds = true;
+                } else {
+                    minX = std::min(minX, left);
+                    minY = std::min(minY, top);
+                    maxX = std::max(maxX, right);
+                    maxY = std::max(maxY, bottom);
+                }
+            }
+
+            if (hasBounds && maxX > minX && maxY > minY) {
+                int totalW = maxX - minX;
+                int totalH = maxY - minY;
+                result.image.w = totalW;
+                result.image.h = totalH;
+                result.image.rgba.assign(
+                    static_cast<size_t>(totalW) * static_cast<size_t>(totalH) *
+                        4u,
+                    0);
+                for (size_t i = 3; i < result.image.rgba.size(); i += 4u) {
+                    result.image.rgba[i] = 255;
+                }
+
+                for (size_t i = 0; i < images.size(); ++i) {
+                    if (images[i].rgba.empty()) {
+                        continue;
+                    }
+                    int w = targetW[i];
+                    int h = targetH[i];
+                    if (w <= 0 || h <= 0) {
+                        continue;
+                    }
+                    ImageRGBA scaled;
+                    const ImageRGBA* src = &images[i];
+                    if (images[i].w != w || images[i].h != h) {
+                        scaled = scaleImageBilinear(images[i], w, h);
+                        src = &scaled;
+                    }
+
+                    int offsetX = result.monitors[i].x - minX;
+                    int offsetY = result.monitors[i].y - minY;
+                    if (offsetX < 0 || offsetY < 0) {
+                        continue;
+                    }
+                    int copyW = std::min(w, totalW - offsetX);
+                    int copyH = std::min(h, totalH - offsetY);
+                    if (copyW <= 0 || copyH <= 0) {
+                        continue;
+                    }
+
+                    for (int y = 0; y < copyH; ++y) {
+                        size_t dstIdx =
+                            (static_cast<size_t>(offsetY + y) *
+                                 static_cast<size_t>(totalW) +
+                             static_cast<size_t>(offsetX)) *
+                            4u;
+                        size_t srcIdx =
+                            (static_cast<size_t>(y) * static_cast<size_t>(w)) *
+                            4u;
+                        std::memcpy(&result.image.rgba[dstIdx],
+                                    &src->rgba[srcIdx],
+                                    static_cast<size_t>(copyW) * 4u);
+                    }
+                }
+            } else {
+                LOG_ERROR("wlr: failed to compute output bounds");
+            }
+        } else {
+            if (selected < 0 ||
+                selected >= static_cast<int>(ctx.outputs.size())) {
+                LOG_ERROR("wlr: no output selected for capture");
+                cleanupContext(ctx);
+                return result;
+            }
+
+            if (!captureOutputImage(ctx, ctx.outputs[selected]->output,
+                                    result.image)) {
+                LOG_ERROR("wlr: capture failed");
+            }
         }
         cleanupContext(ctx);
         return result;

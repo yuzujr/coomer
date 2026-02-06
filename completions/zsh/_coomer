@@ -17,17 +17,17 @@ _coomer_monitors() {
   else
     mons=(${(f)"$(coomer --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"})
   fi
+  mons+=(all)
 
   _describe -t monitors 'monitor' mons
 }
 
 _arguments -s \
   '--backend[Capture backend]:mode:(auto x11 wlr portal)' \
-  '--monitor[Select monitor/output by name (x11/wlr only)]:name:_coomer_monitors' \
+  '--monitor[Select monitor/output by name (x11/wlr only, use all for all monitors)]:name:_coomer_monitors' \
   '--list-monitors[List monitors/outputs visible to the backend]' \
   '--overlay[Wayland layer-shell overlay]' \
   '--portal-interactive[Enable interactive mode for portal]' \
   '--no-spotlight[Disable spotlight mode]' \
   '--debug[Enable debug logging]' \
   '(-h --help)'{-h,--help}'[Show help message]'
-

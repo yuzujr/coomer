@@ -16,6 +16,7 @@ end
 
 function __coomer_list_monitors
     set -l backend (__coomer_backend_from_cmdline)
+    echo all
     if test -n "$backend"
         coomer --backend $backend --list-monitors 2>/dev/null \
             | string match -r '^\[[0-9]+\]\s+(\S+)' \
@@ -35,7 +36,7 @@ complete -c coomer -l backend -r -f \
 # --monitor <name>
 complete -c coomer -l monitor -r -f \
     -a "(__coomer_list_monitors)" \
-    -d "Select monitor/output by name (x11/wlr only)"
+    -d "Select monitor/output by name (x11/wlr only, use all for all monitors)"
 
 # --list-monitors
 complete -c coomer -l list-monitors \

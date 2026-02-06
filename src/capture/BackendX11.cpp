@@ -103,8 +103,9 @@ public:
         auto monitors = listMonitorsFromResources(display, root, resources);
         result.monitors = monitors;
 
+        bool captureAll = monitorNameHint && (*monitorNameHint == "all");
         int chosen = -1;
-        if (monitorNameHint) {
+        if (monitorNameHint && !captureAll) {
             for (size_t i = 0; i < monitors.size(); ++i) {
                 if (monitors[i].name == *monitorNameHint) {
                     chosen = static_cast<int>(i);
@@ -121,7 +122,8 @@ public:
         int y = 0;
         int w = DisplayWidth(display, DefaultScreen(display));
         int h = DisplayHeight(display, DefaultScreen(display));
-        if (chosen >= 0 && chosen < static_cast<int>(monitors.size())) {
+        if (!captureAll && chosen >= 0 &&
+            chosen < static_cast<int>(monitors.size())) {
             x = monitors[chosen].x;
             y = monitors[chosen].y;
             w = monitors[chosen].w;
