@@ -16,8 +16,6 @@
     in {
 
       # ── Package (nix build) ───────────────────────────────────────────────
-      # Build uses Makefile (not xmake) so no package manager runs in the sandbox.
-      # glad is vendored in third_party/. stb is header-only via CPATH.
       packages.${system}.default = pkgs.stdenv.mkDerivation {
         pname   = "coomer";
         version = "0.1.0";
@@ -52,8 +50,6 @@
       };
 
       # ── Dev shell (nix develop) ───────────────────────────────────────────
-      # Use xmake for development (network available, downloads pinned deps).
-      # Pass --nix=y to use nix:: stb instead of downloading.
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
           xmake pkg-config wayland-scanner
