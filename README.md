@@ -34,6 +34,28 @@ yay -S coomer
 yay -S coomer-bin
 ```
 
+### NixOS
+
+Add to your `flake.nix`:
+
+```nix
+inputs.coomer.url = "github:yuzujr/coomer";
+```
+
+Then in your NixOS configuration:
+
+```nix
+environment.systemPackages = [
+  inputs.coomer.packages.${pkgs.system}.default
+];
+```
+
+Or try it without installing:
+
+```bash
+nix run github:yuzujr/coomer
+```
+
 ### Build from Source
 
 **Requirements**: Linux, xmake, C++17 compiler
