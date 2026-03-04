@@ -22,8 +22,33 @@ option("portal")
     set_description("Enable xdg-desktop-portal screenshot backend")
 option_end()
 
-add_requires("glad", {configs = {api = "gl=3.3", profile = "core"}})
-add_requires("stb")
+option("nix")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Use nix:: packages instead of xmake package manager (for nix develop)")
+option_end()
+
+-- Path to a pre-generated glad include directory.
+-- When set, skips xmake's glad download (used by the Nix derivation).
+option("glad_includedir")
+    set_default("")
+    set_showmenu(true)
+    set_description("Path to pre-generated glad include dir (e.g. from python3Packages.glad2)")
+option_end()
+
+local _glad_dir = get_config("glad_includedir")
+if _glad_dir and _glad_dir ~= "" then
+    -- Derivation mode: glad pre-generated, stb provided via CPATH.
+    -- No add_requires needed — xmake must not try to download anything.
+elseif has_config("nix") then
+    -- nix develop: stb comes from Nix, glad still downloaded by xmake.
+    add_requires("nix::stb", {alias = "stb"})
+    add_requires("glad", {configs = {api = "gl=3.3", profile = "core"}})
+else
+    -- Normal: xmake downloads everything.
+    add_requires("glad", {configs = {api = "gl=3.3", profile = "core"}})
+    add_requires("stb")
+end
 
 if has_config("x11") then
     add_requires("pkgconfig::x11", "pkgconfig::xrandr", "pkgconfig::gl")
@@ -40,7 +65,17 @@ target("coomer")
     add_includedirs("src", "generated")
     local embdir = path.join("$(projectdir)", "assets", "shaders")
     add_cxxflags("--embed-dir=" .. embdir)
-    add_packages("glad", "stb")
+    -- glad + stb: pre-generated (derivation) or xmake-managed (devShell/normal)
+    local _glad_inc = get_config("glad_includedir")
+    if _glad_inc and _glad_inc ~= "" then
+        -- Derivation mode: add the include dir, compile glad's generated .c
+        -- glad v1 layout: <glad_includedir>/glad/glad.h, <glad_includedir>/../src/glad.c
+        add_includedirs(_glad_inc)
+        add_files(path.join(_glad_inc, "..", "src", "*.c"))
+        -- stb is provided via CPATH in the Nix derivation; no add_packages needed.
+    else
+        add_packages("glad", "stb")
+    end
     add_syslinks("dl", "pthread", "m")
 
     add_files("src/app/main.cpp",
