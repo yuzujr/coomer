@@ -62,14 +62,13 @@
           export XMAKE_GLOBALDIR=$TMPDIR/.xmake
 
           # stb is header-only (no .pc file); expose via CPATH.
+          # glad is vendored in generated/glad/ — no package needed.
           export CPATH="${pkgs.stb}/include''${CPATH:+:$CPATH}"
 
-          # glad_includedir points to pre-generated glad v1 headers;
-          # xmake will compile $glad_includedir/../src/glad.c directly.
           xmake f --yes -p linux -a x86_64 \
             --mode=release \
             --wayland=y --x11=y --portal=y \
-            --glad_includedir=${gladGL33}/include
+            --system=y
 
           xmake build --yes
         '';
@@ -92,7 +91,7 @@
       # \u2500\u2500 Dev shell \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
       # Usage:
       #   nix develop
-      #   xmake f --nix=y   # stb from nix::, glad downloaded normally
+      #   xmake f --nix=y   # stb from nix::; glad is vendored, no download needed
       #   xmake
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [

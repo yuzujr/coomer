@@ -1,6 +1,6 @@
 #include "render/RendererGL.hpp"
 
-#include <glad/glad.h>
+#include <glad/gl.h>
 
 #include <cmath>
 #include <string>
@@ -74,12 +74,13 @@ bool RendererGL::initGL(std::function<void*(const char*)> loaderProc) {
     static std::function<void*(const char*)> staticLoader;
     staticLoader = loaderProc;
 
-    auto wrapper = [](const char* name) -> void* {
-        return staticLoader(name);
+    auto wrapper = [](const char* name) -> GLADapiproc {
+        // EGL/GLX loaders return void*; reinterpret to function pointer.
+        return reinterpret_cast<GLADapiproc>(staticLoader(name));
     };
 
-    if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(+wrapper))) {
-        LOG_ERROR("gladLoadGLLoader failed");
+    if (!gladLoadGL(+wrapper)) {
+        LOG_ERROR("gladLoadGL failed");
         return false;
     }
     if (!GLAD_GL_VERSION_3_3) {
