@@ -79,17 +79,20 @@ TARGET := _build/coomer
 
 .PHONY: all install clean
 
-all: generated_protocols $(TARGET)
+all: $(TARGET)
 
 # ── Wayland protocol code generation ─────────────────────────────────────────
-.PHONY: generated_protocols
-generated_protocols:
-	@mkdir -p generated
-	@for xml in protocols/*.xml; do \
-	  base=$$(basename $$xml .xml); \
-	  wayland-scanner client-header $$xml generated/$$base-client-protocol.h; \
-	  wayland-scanner private-code  $$xml generated/$$base-protocol.c; \
-	done
+# Generate both .c and .h from same .xml — the .c rule also emits the .h so
+# that compiling the .c file can always find its companion header.
+generated/%-protocol.c: protocols/%.xml | generated
+	wayland-scanner private-code  $< $@
+	wayland-scanner client-header $< $(@:%-protocol.c=%-client-protocol.h)
+
+generated/%-client-protocol.h: protocols/%.xml | generated
+	wayland-scanner client-header $< $@
+
+generated:
+	mkdir -p generated
 
 # ── Link ──────────────────────────────────────────────────────────────────────
 $(TARGET): $(GLAD_OBJ) $(PROTO_OBJS) $(CXX_OBJS)
@@ -100,6 +103,8 @@ $(GLAD_OBJ): third_party/glad/gl.c | _build
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
 # ── Compile Wayland protocol stubs (C) ───────────────────────────────────────
+# The generated/%-protocol.c rule also emits the companion .h, so depending on
+# the .c alone is sufficient.
 _build/proto_%.o: generated/%.c | _build
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
