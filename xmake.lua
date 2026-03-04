@@ -25,23 +25,15 @@ option_end()
 option("nix")
     set_default(false)
     set_showmenu(true)
-    set_description("Use nix:: packages instead of xmake package manager (for nix develop)")
+    set_description("Use nix:: stb instead of downloading (for nix develop)")
 option_end()
 
-option("system")
-    set_default(false)
-    set_showmenu(true)
-    set_description("Skip xmake package manager for stb (provided via CPATH in Nix derivation)")
-option_end()
-
--- glad is vendored in generated/glad/ (generated once with glad2 --reproducible).
+-- glad is vendored in third_party/glad/ — no package needed.
 -- Only stb needs to come from outside; it's header-only with no .pc file.
-if not has_config("system") then
-    if has_config("nix") then
-        add_requires("nix::stb", {alias = "stb"})
-    else
-        add_requires("stb")
-    end
+if has_config("nix") then
+    add_requires("nix::stb", {alias = "stb"})
+else
+    add_requires("stb")
 end
 
 if has_config("x11") then
@@ -61,10 +53,7 @@ target("coomer")
     add_cxxflags("--embed-dir=" .. embdir)
     -- glad is vendored in third_party/glad/ (generated with glad2 --reproducible)
     add_files("third_party/glad/gl.c")
-    -- stb is header-only; in derivation mode it's injected via CPATH
-    if not has_config("system") then
-        add_packages("stb")
-    end
+    add_packages("stb")
     add_syslinks("dl", "pthread", "m")
 
     add_files("src/app/main.cpp",

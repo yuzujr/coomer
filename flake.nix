@@ -2,80 +2,43 @@
   description = "coomer — screen zoom/magnifier for Wayland/X11";
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
   outputs = { self, nixpkgs }:
     let
       system = "x86_64-linux";
       pkgs   = nixpkgs.legacyPackages.${system};
 
       systemLibs = with pkgs; [
-        wayland
-        wayland-protocols
-        libxkbcommon
-        libGL
-        libglvnd
-        egl-wayland
-        libX11
-        libXrandr
-        dbus
+        wayland wayland-protocols libxkbcommon
+        libGL libglvnd egl-wayland
+        libX11 libXrandr dbus
       ];
-
-      # \u2500\u2500 Pre-generate glad v1 headers (GL 3.3 core) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-      # python3Packages.glad is the original glad v1 generator.
-      # Output layout matching what coomer includes (<glad/glad.h>):
-      #   $out/include/glad/glad.h
-      #   $out/include/KHR/khrplatform.h
-      #   $out/src/glad.c
-      gladGL33 = pkgs.stdenv.mkDerivation {
-        name = "glad-gl33-core";
-        dontUnpack = true;
-        nativeBuildInputs = [ pkgs.python3Packages.glad ];
-        buildPhase = ''
-          python3 -m glad \
-            --profile core \
-            --api gl=3.3 \
-            --generator c \
-            --spec gl \
-            --out-path $out
-        '';
-        installPhase = "true";
-      };
-
     in {
 
-      # \u2500\u2500 Package \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+      # ── Package (nix build) ───────────────────────────────────────────────
+      # Build uses Makefile (not xmake) so no package manager runs in the sandbox.
+      # glad is vendored in third_party/. stb is header-only via CPATH.
       packages.${system}.default = pkgs.stdenv.mkDerivation {
         pname   = "coomer";
         version = "0.1.0";
         src     = ./.;
 
         nativeBuildInputs = with pkgs; [
-          xmake
+          clang
           pkg-config
           wayland-scanner
-          clang
         ];
-
         buildInputs = systemLibs;
 
         buildPhase = ''
-          export HOME=$TMPDIR
-          export XMAKE_GLOBALDIR=$TMPDIR/.xmake
-
-          # stb is header-only (no .pc file); expose via CPATH.
-          # glad is vendored in generated/glad/ — no package needed.
+          # stb is header-only with no .pc file — expose via CPATH.
           export CPATH="${pkgs.stb}/include''${CPATH:+:$CPATH}"
-
-          xmake f --yes -p linux -a x86_64 \
-            --mode=release \
-            --wayland=y --x11=y --portal=y \
-            --system=y
-
-          xmake build --yes
+          make -j$NIX_BUILD_CORES
         '';
 
         installPhase = ''
           runHook preInstall
-          install -Dm755 build/linux/x86_64/release/coomer $out/bin/coomer
+          make install PREFIX=$out
           runHook postInstall
         '';
 
@@ -88,26 +51,19 @@
         };
       };
 
-      # \u2500\u2500 Dev shell \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-      # Usage:
-      #   nix develop
-      #   xmake f --nix=y   # stb from nix::; glad is vendored, no download needed
-      #   xmake
+      # ── Dev shell (nix develop) ───────────────────────────────────────────
+      # Use xmake for development (network available, downloads pinned deps).
+      # Pass --nix=y to use nix:: stb instead of downloading.
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
-          xmake
-          pkg-config
-          wayland-scanner
-          clang
-          clang-tools
-          gdb
+          xmake pkg-config wayland-scanner
+          clang clang-tools gdb
         ] ++ systemLibs;
-
         shellHook = ''
           echo "coomer dev shell"
-          echo "  xmake f --nix=y   \u2014 configure (stb from nix::, glad downloaded)"
-          echo "  xmake             \u2014 build"
-          echo "  xmake run         \u2014 build & run"
+          echo "  xmake             — build (downloads stb)"
+          echo "  xmake f --nix=y   — build using nix:: stb"
+          echo "  make              — build with plain make"
         '';
       };
     };
