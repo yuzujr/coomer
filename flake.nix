@@ -32,7 +32,7 @@
 
         buildPhase = ''
           # stb is header-only with no .pc file — expose via CPATH.
-          export CPATH="${pkgs.stb}/include''${CPATH:+:$CPATH}"
+          export CPATH="${pkgs.stb}/include/stb''${CPATH:+:$CPATH}"
           make -j$NIX_BUILD_CORES
         '';
 
