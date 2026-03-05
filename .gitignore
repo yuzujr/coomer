@@ -1,5 +1,7 @@
-.xmake/
 .cache/
+.direnv/
+.xmake/
+.envrc
 
 build/
 generated/
