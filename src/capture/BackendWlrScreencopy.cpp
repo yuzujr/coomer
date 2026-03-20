@@ -545,6 +545,14 @@ public:
                 cleanupContext(ctx);
                 return result;
             }
+            if (ctx.outputs.size() == 1) {
+                if (!captureOutputImage(ctx, ctx.outputs[0]->output,
+                                        result.image)) {
+                    LOG_ERROR("wlr: capture failed");
+                }
+                cleanupContext(ctx);
+                return result;
+            }
 
             std::vector<ImageRGBA> images;
             images.resize(ctx.outputs.size());

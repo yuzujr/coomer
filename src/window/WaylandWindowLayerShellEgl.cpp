@@ -13,10 +13,12 @@
 #include <cstring>
 #include <memory>
 
+#include "fractional-scale-v1-client-protocol.h"
+#include "platform/Log.hpp"
+#include "viewporter-client-protocol.h"
 #define namespace wl_namespace
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #undef namespace
-#include "platform/Log.hpp"
 
 #if __has_include(<linux/input-event-codes.h>)
 #include <linux/input-event-codes.h>
@@ -30,8 +32,10 @@ namespace coomer {
 class WaylandWindowLayerShellEgl final : public IWindow {
 public:
     explicit WaylandWindowLayerShellEgl(const WindowConfig& config) {
-        width_ = std::max(1, config.width);
-        height_ = std::max(1, config.height);
+        surfaceWidth_ = std::max(1, config.width);
+        surfaceHeight_ = std::max(1, config.height);
+        width_ = surfaceWidth_;
+        height_ = surfaceHeight_;
 
         display_ = wl_display_connect(nullptr);
         if (!display_) {
@@ -52,6 +56,15 @@ public:
         if (!surface_) {
             LOG_ERROR("failed to create Wayland surface");
             return;
+        }
+        if (viewporter_) {
+            viewport_ = wp_viewporter_get_viewport(viewporter_, surface_);
+        }
+        if (fractionalScaleManager_) {
+            fractionalScale_ = wp_fractional_scale_manager_v1_get_fractional_scale(
+                fractionalScaleManager_, surface_);
+            wp_fractional_scale_v1_add_listener(fractionalScale_,
+                                                &fractionalScaleListener_, this);
         }
 
         layerSurface_ = zwlr_layer_shell_v1_get_layer_surface(
@@ -86,6 +99,7 @@ public:
         if (!configured_) {
             LOG_WARN("layer-shell: no initial configure received");
         }
+        updateBufferGeometry();
 
         eglWindow_ = wl_egl_window_create(surface_, width_, height_);
         if (!eglWindow_) {
@@ -181,6 +195,12 @@ public:
         if (frameCallback_) {
             wl_callback_destroy(frameCallback_);
         }
+        if (fractionalScale_) {
+            wp_fractional_scale_v1_destroy(fractionalScale_);
+        }
+        if (viewport_) {
+            wp_viewport_destroy(viewport_);
+        }
         if (keyboard_) {
             wl_keyboard_destroy(keyboard_);
         }
@@ -221,6 +241,12 @@ public:
         }
         if (layerShell_) {
             zwlr_layer_shell_v1_destroy(layerShell_);
+        }
+        if (fractionalScaleManager_) {
+            wp_fractional_scale_manager_v1_destroy(fractionalScaleManager_);
+        }
+        if (viewporter_) {
+            wp_viewporter_destroy(viewporter_);
         }
         if (compositor_) {
             wl_compositor_destroy(compositor_);
@@ -295,6 +321,47 @@ public:
     }
 
 private:
+    static int scaleSurfaceToBuffer(int size, uint32_t scale120) {
+        long long scaled = static_cast<long long>(size) *
+                           static_cast<long long>(std::max(1u, scale120));
+        return std::max(1, static_cast<int>((scaled + 60) / 120));
+    }
+
+    double surfaceToBufferX(double x) const {
+        if (surfaceWidth_ <= 0) {
+            return x;
+        }
+        return x * static_cast<double>(width_) /
+               static_cast<double>(surfaceWidth_);
+    }
+
+    double surfaceToBufferY(double y) const {
+        if (surfaceHeight_ <= 0) {
+            return y;
+        }
+        return y * static_cast<double>(height_) /
+               static_cast<double>(surfaceHeight_);
+    }
+
+    void updateBufferGeometry() {
+        surfaceWidth_ = std::max(1, surfaceWidth_);
+        surfaceHeight_ = std::max(1, surfaceHeight_);
+
+        int newWidth = surfaceWidth_;
+        int newHeight = surfaceHeight_;
+        if (viewport_) {
+            wp_viewport_set_destination(viewport_, surfaceWidth_, surfaceHeight_);
+            newWidth = scaleSurfaceToBuffer(surfaceWidth_, preferredScale120_);
+            newHeight = scaleSurfaceToBuffer(surfaceHeight_, preferredScale120_);
+        }
+
+        width_ = newWidth;
+        height_ = newHeight;
+        if (eglWindow_) {
+            wl_egl_window_resize(eglWindow_, width_, height_, 0, 0);
+        }
+    }
+
     static void handleGlobal(void* data, wl_registry* registry, uint32_t name,
                              const char* interface, uint32_t version) {
         auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
@@ -311,6 +378,16 @@ private:
             self->layerShell_ =
                 static_cast<zwlr_layer_shell_v1*>(wl_registry_bind(
                     registry, name, &zwlr_layer_shell_v1_interface, 1));
+        } else if (std::strcmp(interface, wp_viewporter_interface.name) == 0) {
+            self->viewporter_ = static_cast<wp_viewporter*>(
+                wl_registry_bind(registry, name, &wp_viewporter_interface, 1));
+        } else if (std::strcmp(interface,
+                               wp_fractional_scale_manager_v1_interface.name) ==
+                   0) {
+            self->fractionalScaleManager_ =
+                static_cast<wp_fractional_scale_manager_v1*>(wl_registry_bind(
+                    registry, name, &wp_fractional_scale_manager_v1_interface,
+                    1));
         }
     }
 
@@ -325,12 +402,9 @@ private:
         self->configured_ = true;
         LOG_DEBUG("layer-shell configure: %ux%u", width, height);
         if (width > 0 && height > 0) {
-            self->width_ = static_cast<int>(width);
-            self->height_ = static_cast<int>(height);
-            if (self->eglWindow_) {
-                wl_egl_window_resize(self->eglWindow_, self->width_,
-                                     self->height_, 0, 0);
-            }
+            self->surfaceWidth_ = static_cast<int>(width);
+            self->surfaceHeight_ = static_cast<int>(height);
+            self->updateBufferGeometry();
         }
     }
 
@@ -378,8 +452,8 @@ private:
     static void handlePointerEnter(void* data, wl_pointer*, uint32_t,
                                    wl_surface*, wl_fixed_t sx, wl_fixed_t sy) {
         auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        double x = wl_fixed_to_double(sx);
-        double y = wl_fixed_to_double(sy);
+        double x = self->surfaceToBufferX(wl_fixed_to_double(sx));
+        double y = self->surfaceToBufferY(wl_fixed_to_double(sy));
         self->input_.mouseX = x;
         self->input_.mouseY = y;
         self->lastMouseX_ = x;
@@ -396,8 +470,8 @@ private:
     static void handlePointerMotion(void* data, wl_pointer*, uint32_t,
                                     wl_fixed_t sx, wl_fixed_t sy) {
         auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        double x = wl_fixed_to_double(sx);
-        double y = wl_fixed_to_double(sy);
+        double x = self->surfaceToBufferX(wl_fixed_to_double(sx));
+        double y = self->surfaceToBufferY(wl_fixed_to_double(sy));
         if (!self->hasLastMouse_) {
             self->lastMouseX_ = x;
             self->lastMouseY_ = y;
@@ -507,6 +581,16 @@ private:
     static void handleKeyboardRepeatInfo(void*, wl_keyboard*, int32_t,
                                          int32_t) {}
 
+    static void handlePreferredScale(void* data, wp_fractional_scale_v1*,
+                                     uint32_t scale) {
+        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
+        if (scale == 0) {
+            return;
+        }
+        self->preferredScale120_ = scale;
+        self->updateBufferGeometry();
+    }
+
     static inline wl_registry_listener registryListener_ = {handleGlobal,
                                                             handleGlobalRemove};
     static inline zwlr_layer_surface_v1_listener layerSurfaceListener_ = {
@@ -524,11 +608,17 @@ private:
         handleKeyboardLeave,     handleKeyboardKey,
         handleKeyboardModifiers, handleKeyboardRepeatInfo};
     static inline wl_callback_listener frameListener_ = {handleFrameDone};
+    static inline wp_fractional_scale_v1_listener fractionalScaleListener_ = {
+        handlePreferredScale};
 
     wl_display* display_ = nullptr;
     wl_registry* registry_ = nullptr;
     wl_compositor* compositor_ = nullptr;
     zwlr_layer_shell_v1* layerShell_ = nullptr;
+    wp_viewporter* viewporter_ = nullptr;
+    wp_viewport* viewport_ = nullptr;
+    wp_fractional_scale_manager_v1* fractionalScaleManager_ = nullptr;
+    wp_fractional_scale_v1* fractionalScale_ = nullptr;
     wl_surface* surface_ = nullptr;
     zwlr_layer_surface_v1* layerSurface_ = nullptr;
 
@@ -550,6 +640,9 @@ private:
     bool shouldClose_ = false;
     int width_ = 0;
     int height_ = 0;
+    int surfaceWidth_ = 0;
+    int surfaceHeight_ = 0;
+    uint32_t preferredScale120_ = 120;
     bool configured_ = false;
     wl_callback* frameCallback_ = nullptr;
 
