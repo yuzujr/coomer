@@ -22,20 +22,6 @@ option("portal")
     set_description("Enable xdg-desktop-portal screenshot backend")
 option_end()
 
-option("nix")
-    set_default(false)
-    set_showmenu(true)
-    set_description("Use nix:: stb instead of downloading (for nix develop)")
-option_end()
-
--- glad is vendored in third_party/glad/ — no package needed.
--- Only stb needs to come from outside; it's header-only with no .pc file.
-if has_config("nix") then
-    add_requires("nix::stb", {alias = "stb"})
-else
-    add_requires("stb")
-end
-
 if has_config("x11") then
     add_requires("pkgconfig::x11", "pkgconfig::xrandr", "pkgconfig::gl")
 end
@@ -51,9 +37,7 @@ target("coomer")
     add_includedirs("src", "generated", "third_party")
     local embdir = path.join("$(projectdir)", "assets", "shaders")
     add_cxxflags("--embed-dir=" .. embdir)
-    -- glad is vendored in third_party/glad/ (generated with glad2 --reproducible)
     add_files("third_party/glad/gl.c")
-    add_packages("stb")
     add_syslinks("dl", "pthread", "m")
 
     add_files("src/app/main.cpp",

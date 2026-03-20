@@ -3,13 +3,15 @@
 #
 # Requires:
 #   clang / g++ with C17+C++17, pkg-config, wayland-scanner
-#   stb headers available in CPATH (set by Nix derivation or manually)
 
 CC       ?= cc
 CXX      ?= c++
 CFLAGS   ?= -O2
 CXXFLAGS ?= -std=c++17 -O2
 PREFIX   ?= /usr
+BASH_COMPLETIONDIR ?= $(PREFIX)/share/bash-completion/completions
+ZSH_COMPLETIONDIR  ?= $(PREFIX)/share/zsh/site-functions
+FISH_COMPLETIONDIR ?= $(PREFIX)/share/fish/vendor_completions.d
 
 # All features on by default; pass e.g. WAYLAND=0 to disable
 X11     ?= 1
@@ -74,6 +76,7 @@ CXX_OBJS := $(patsubst src/%.cpp, _build/%.o, $(CXX_SRCS))
 # Wayland protocol generated files
 PROTO_SRCS := $(patsubst protocols/%.xml, generated/%-protocol.c, $(wildcard protocols/*.xml))
 PROTO_OBJS := $(patsubst generated/%.c, _build/proto_%.o, $(PROTO_SRCS))
+PROTO_HDRS := $(patsubst protocols/%.xml, generated/%-client-protocol.h, $(wildcard protocols/*.xml))
 
 TARGET := _build/coomer
 
@@ -109,7 +112,7 @@ _build/proto_%.o: generated/%.c | _build
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
 # ── Compile C++ sources ───────────────────────────────────────────────────────
-_build/%.o: src/%.cpp | _build
+_build/%.o: src/%.cpp $(PROTO_HDRS) | _build
 	@mkdir -p $(dir $@)
 	$(CXX) $(ALL_CXXFLAGS) -c -o $@ $<
 
@@ -118,6 +121,9 @@ _build:
 
 install: all
 	install -Dm755 $(TARGET) $(DESTDIR)$(PREFIX)/bin/coomer
+	install -Dm644 completions/bash/coomer $(DESTDIR)$(BASH_COMPLETIONDIR)/coomer
+	install -Dm644 completions/zsh/_coomer $(DESTDIR)$(ZSH_COMPLETIONDIR)/_coomer
+	install -Dm644 completions/fish/coomer.fish $(DESTDIR)$(FISH_COMPLETIONDIR)/coomer.fish
 
 clean:
 	rm -rf _build generated

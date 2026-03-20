@@ -37,8 +37,6 @@
         buildInputs = systemLibs;
 
         buildPhase = ''
-          # stb is header-only with no .pc file — expose via CPATH.
-          export CPATH="${pkgs.stb}/include/stb''${CPATH:+:$CPATH}"
           make -j$NIX_BUILD_CORES
         '';
 
@@ -72,8 +70,7 @@
 
         shellHook = ''
           echo "coomer dev shell"
-          echo "  xmake             — build (downloads stb)"
-          echo "  xmake f --nix=y   — build using nix:: stb"
+          echo "  xmake             — build"
           echo "  make              — build with plain make"
         '';
       };

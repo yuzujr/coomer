@@ -10,13 +10,7 @@
 #include <string>
 
 #define STB_IMAGE_IMPLEMENTATION
-#if __has_include(<stb_image.h>)
-#include <stb_image.h>
-#elif __has_include(<stb/stb_image.h>)
 #include <stb/stb_image.h>
-#else
-#error "stb_image.h not found"
-#endif
 
 #include "platform/FileUtil.hpp"
 #include "platform/Log.hpp"
