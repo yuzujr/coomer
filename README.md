@@ -78,6 +78,7 @@ Options:
   --overlay              Wayland layer-shell overlay (wlr/portal only)
   --portal-interactive   Enable interactive mode for portal (show selection dialog)
   --no-spotlight         Disable spotlight mode
+  --version              Show version
   --debug                Enable debug logging
   --help, -h             Show this help message
 

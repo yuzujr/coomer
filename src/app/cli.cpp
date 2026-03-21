@@ -5,6 +5,10 @@
 
 namespace coomer {
 
+#ifndef COOMER_VERSION
+#define COOMER_VERSION "dev"
+#endif
+
 static void printUsage(const char* exe) {
     std::cerr << "Usage: " << exe << " [options]\n"
               << "\n"
@@ -20,6 +24,7 @@ static void printUsage(const char* exe) {
               << "  --portal-interactive   Enable interactive mode for portal "
                  "(show selection dialog)\n"
               << "  --no-spotlight         Disable spotlight mode\n"
+              << "  --version              Show version\n"
               << "  --debug                Enable debug logging\n"
               << "  --help, -h             Show this help message\n"
               << "\n"
@@ -28,6 +33,10 @@ static void printUsage(const char* exe) {
               << "  Hold Left click: pan\n"
               << "  Scroll wheel: zoom\n"
               << "  Hold Ctrl: spotlight (Ctrl + wheel to resize)\n";
+}
+
+static void printVersion() {
+    std::cout << "coomer " << COOMER_VERSION << "\n";
 }
 
 std::string backendKindToString(BackendKind kind) {
@@ -81,6 +90,9 @@ bool parseCli(int argc, char** argv, CliOptions& out, std::string& err) {
             out.overlay = true;
         } else if (arg == "--portal-interactive") {
             out.portalInteractive = true;
+        } else if (arg == "--version") {
+            printVersion();
+            std::exit(0);
         } else if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
             std::exit(0);

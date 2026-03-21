@@ -1,5 +1,5 @@
 set_project("coomer")
-set_version("0.1.0")
+set_version("1.1.3")
 
 set_languages("c17", "cxx17")
 add_rules("mode.debug", "mode.release")
@@ -63,7 +63,22 @@ target("coomer")
                      "pkgconfig::gl",
                      "pkgconfig::xkbcommon")
 
-        on_load(function (target)
+    end
+
+    if has_config("portal") then
+        add_defines("COOMER_HAS_PORTAL")
+        add_files("src/capture/BackendPortalScreenshot.cpp")
+        add_packages("pkgconfig::dbus-1")
+    end
+
+    on_load(function (target)
+        local project_version = "1.1.3"
+        if io and io.readfile and os.isfile("VERSION") then
+            project_version = (io.readfile("VERSION") or project_version):gsub("%s+$", "")
+        end
+        target:add("defines", 'COOMER_VERSION="' .. project_version .. '"')
+
+        if has_config("wayland") then
             local find_program = import("lib.detect.find_program")
 
             local wayland_scanner = find_program("wayland-scanner")
@@ -86,11 +101,5 @@ target("coomer")
             if #files > 0 then
                 target:add("files", files)
             end
-        end)
-    end
-
-    if has_config("portal") then
-        add_defines("COOMER_HAS_PORTAL")
-        add_files("src/capture/BackendPortalScreenshot.cpp")
-        add_packages("pkgconfig::dbus-1")
-    end
+        end
+    end)

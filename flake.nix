@@ -8,6 +8,7 @@
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
+      version = pkgs.lib.strings.removeSuffix "\n" (builtins.readFile ./VERSION);
 
       systemLibs = with pkgs; [
         wayland
@@ -26,7 +27,7 @@
       # ── Package (nix build) ───────────────────────────────────────────────
       packages.${system}.default = pkgs.stdenv.mkDerivation {
         pname = "coomer";
-        version = "0.1.0";
+        inherit version;
         src = ./.;
 
         nativeBuildInputs = with pkgs; [
