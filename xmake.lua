@@ -72,7 +72,7 @@ target("coomer")
     end
 
     on_load(function (target)
-        local project_version = "1.1.3"
+        local project_version
         if io and io.readfile and os.isfile("VERSION") then
             project_version = (io.readfile("VERSION") or project_version):gsub("%s+$", "")
         end
