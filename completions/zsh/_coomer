@@ -29,5 +29,6 @@ _arguments -s \
   '--overlay[Wayland layer-shell overlay]' \
   '--portal-interactive[Enable interactive mode for portal]' \
   '--no-spotlight[Disable spotlight mode]' \
+  '--version[Show version]' \
   '--debug[Enable debug logging]' \
   '(-h --help)'{-h,--help}'[Show help message]'

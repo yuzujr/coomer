@@ -58,6 +58,10 @@ complete -c coomer -l no-spotlight \
 complete -c coomer -l debug \
     -d "Enable debug logging"
 
+# --version
+complete -c coomer -l version \
+    -d "Show version"
+
 # --help, -h
 complete -c coomer -l help -s h \
     -d "Show help message"
