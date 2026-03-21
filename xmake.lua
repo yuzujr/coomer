@@ -1,8 +1,14 @@
 set_project("coomer")
-set_version("1.1.3")
+set_version("$(shell cat VERSION)")
 
 set_languages("c17", "cxx17")
 add_rules("mode.debug", "mode.release")
+
+-- Enable warnings
+set_warnings("all", "extra")
+
+-- Lock dependencies for reproducible builds
+set_policy("package.requires_lock", true)
 
 option("x11")
     set_default(true)
@@ -35,6 +41,7 @@ end
 target("coomer")
     set_kind("binary")
     add_includedirs("src", "generated", "third_party")
+    add_defines('COOMER_VERSION="$(shell cat VERSION)"')
     local embdir = path.join("$(projectdir)", "assets", "shaders")
     add_cxxflags("--embed-dir=" .. embdir)
     add_files("third_party/glad/gl.c")
@@ -72,12 +79,6 @@ target("coomer")
     end
 
     on_load(function (target)
-        local project_version
-        if io and io.readfile and os.isfile("VERSION") then
-            project_version = (io.readfile("VERSION") or project_version):gsub("%s+$", "")
-        end
-        target:add("defines", 'COOMER_VERSION="' .. project_version .. '"')
-
         if has_config("wayland") then
             local find_program = import("lib.detect.find_program")
 
