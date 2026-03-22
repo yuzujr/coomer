@@ -14,17 +14,17 @@ Zoomer application for everyone on Linux.
 ### AppImage
 Install from [releases](https://github.com/yuzujr/coomer/releases).
 
-The release artifact is an `x86_64` AppImage:
+Release artifacts are published for `x86_64` and `aarch64`:
 
 ```bash
-chmod +x coomer-vX.Y.Z-linux-x86_64.AppImage
-./coomer-vX.Y.Z-linux-x86_64.AppImage
+chmod +x coomer-vX.Y.Z-linux-<arch>.AppImage
+./coomer-vX.Y.Z-linux-<arch>.AppImage
 ```
 
 On NixOS, run it with:
 
 ```bash
-appimage-run ./coomer-vX.Y.Z-linux-x86_64.AppImage
+appimage-run ./coomer-vX.Y.Z-linux-<arch>.AppImage
 ```
 
 ### Arch Linux (AUR)

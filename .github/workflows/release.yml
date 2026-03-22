@@ -61,7 +61,16 @@ jobs:
 
   build:
     needs: prepare-release
-    runs-on: ubuntu-24.04
+    name: Build AppImage (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -89,24 +98,24 @@ jobs:
           mkdir -p .tools
 
           curl -L \
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage \
-            -o .tools/linuxdeploy-x86_64.AppImage
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch }}.AppImage" \
+            -o ".tools/linuxdeploy-${{ matrix.arch }}.AppImage"
 
           curl -L \
-            https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage \
-            -o .tools/linuxdeploy-plugin-appimage-x86_64.AppImage
+            "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-${{ matrix.arch }}.AppImage" \
+            -o ".tools/linuxdeploy-plugin-appimage-${{ matrix.arch }}.AppImage"
 
           chmod +x \
-            .tools/linuxdeploy-x86_64.AppImage \
-            .tools/linuxdeploy-plugin-appimage-x86_64.AppImage
+            ".tools/linuxdeploy-${{ matrix.arch }}.AppImage" \
+            ".tools/linuxdeploy-plugin-appimage-${{ matrix.arch }}.AppImage"
 
-          ln -sf linuxdeploy-x86_64.AppImage .tools/linuxdeploy
-          ln -sf linuxdeploy-plugin-appimage-x86_64.AppImage .tools/linuxdeploy-plugin-appimage
+          ln -sf "linuxdeploy-${{ matrix.arch }}.AppImage" .tools/linuxdeploy
+          ln -sf "linuxdeploy-plugin-appimage-${{ matrix.arch }}.AppImage" .tools/linuxdeploy-plugin-appimage
           echo "$PWD/.tools" >> "$GITHUB_PATH"
 
       - name: Build AppImage
         env:
-          ARCH: x86_64
+          ARCH: ${{ matrix.arch }}
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           scripts/build-appimage.sh
@@ -115,12 +124,11 @@ jobs:
         run: |
           mkdir -p release
           cp dist/*.AppImage release/
-          (cd release && sha256sum *.AppImage > SHA256SUMS)
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-appimage
+          name: release-${{ matrix.arch }}
           path: release/*
 
   create-release:
@@ -144,7 +152,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: |
             release/*.AppImage
-            release/SHA256SUMS
           body: |
             ## coomer v${{ needs.prepare-release.outputs.version }}
 
@@ -153,14 +160,15 @@ jobs:
             ### Assets
 
             - `coomer-v${{ needs.prepare-release.outputs.version }}-linux-x86_64.AppImage`
+            - `coomer-v${{ needs.prepare-release.outputs.version }}-linux-aarch64.AppImage`
 
             ### Installation
 
             Download the AppImage, mark it executable, and run it:
 
             ```bash
-            chmod +x coomer-v${{ needs.prepare-release.outputs.version }}-linux-x86_64.AppImage
-            ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-x86_64.AppImage
+            chmod +x coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage
+            ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage
             ```
 
             On NixOS, run it with `appimage-run`.
