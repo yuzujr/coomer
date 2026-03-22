@@ -171,6 +171,12 @@ jobs:
             ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage
             ```
 
+            If FUSE is unavailable on your system:
+
+            ```bash
+            APPIMAGE_EXTRACT_AND_RUN=1 ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage --version
+            ```
+
             On NixOS, run it with `appimage-run`.
 
             See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed documentation.

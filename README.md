@@ -21,6 +21,12 @@ chmod +x coomer-vX.Y.Z-linux-<arch>.AppImage
 ./coomer-vX.Y.Z-linux-<arch>.AppImage
 ```
 
+If FUSE is unavailable on your system:
+
+```bash
+APPIMAGE_EXTRACT_AND_RUN=1 ./coomer-vX.Y.Z-linux-<arch>.AppImage --version
+```
+
 On NixOS, run it with:
 
 ```bash
