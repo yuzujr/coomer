@@ -1,5 +1,4 @@
-# coomer — build file for Nix derivations (and plain make on any distro).
-# For development, xmake is the primary build system.
+# coomer — build file for development, packaging, and releases.
 #
 # Requires:
 #   clang / g++ with C17+C++17, pkg-config, wayland-scanner
@@ -13,6 +12,9 @@ VERSION  := $(strip $(file < VERSION))
 BASH_COMPLETIONDIR ?= $(PREFIX)/share/bash-completion/completions
 ZSH_COMPLETIONDIR  ?= $(PREFIX)/share/zsh/site-functions
 FISH_COMPLETIONDIR ?= $(PREFIX)/share/fish/vendor_completions.d
+DESKTOPDIR         ?= $(PREFIX)/share/applications
+ICONDIR            ?= $(PREFIX)/share/icons/hicolor/scalable/apps
+METAINFODIR        ?= $(PREFIX)/share/metainfo
 
 # All features on by default; pass e.g. WAYLAND=0 to disable
 X11     ?= 1
@@ -128,6 +130,9 @@ install: all
 	install -Dm644 completions/bash/coomer $(DESTDIR)$(BASH_COMPLETIONDIR)/coomer
 	install -Dm644 completions/zsh/_coomer $(DESTDIR)$(ZSH_COMPLETIONDIR)/_coomer
 	install -Dm644 completions/fish/coomer.fish $(DESTDIR)$(FISH_COMPLETIONDIR)/coomer.fish
+	install -Dm644 packaging/linux/coomer.desktop $(DESTDIR)$(DESKTOPDIR)/coomer.desktop
+	install -Dm644 packaging/linux/coomer.svg $(DESTDIR)$(ICONDIR)/coomer.svg
+	install -Dm644 packaging/linux/io.github.yuzujr.coomer.metainfo.xml $(DESTDIR)$(METAINFODIR)/io.github.yuzujr.coomer.metainfo.xml
 
 clean:
 	rm -rf $(BUILD_DIR) generated

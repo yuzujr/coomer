@@ -11,27 +11,33 @@ Zoomer application for everyone on Linux.
 
 ## Installation
 
-### Releases
+### AppImage
 Install from [releases](https://github.com/yuzujr/coomer/releases).
 
-### Arch Linux (AUR)
-* `coomer` — build from source (xmake)
-* `coomer-bin` — prebuilt from Releases
+The release artifact is an `x86_64` AppImage:
 
-Install one of them:
+```bash
+chmod +x coomer-vX.Y.Z-linux-x86_64.AppImage
+./coomer-vX.Y.Z-linux-x86_64.AppImage
+```
+
+On NixOS, run it with:
+
+```bash
+appimage-run ./coomer-vX.Y.Z-linux-x86_64.AppImage
+```
+
+### Arch Linux (AUR)
+`coomer` — build from source, with dependencies handled by pacman
 
 use `paru`:
 ```bash
 paru -S coomer
-# or
-paru -S coomer-bin
 ```
 
 or use `yay`:
 ```bash
 yay -S coomer
-# or
-yay -S coomer-bin
 ```
 
 ### NixOS
@@ -58,12 +64,53 @@ nix run github:yuzujr/coomer
 
 ### Build from Source
 
-**Requirements**: Linux, xmake, C++17 compiler
+Requirements:
+
+- Linux
+- `clang` or `g++` with C17/C++17 support
+- `pkg-config`
+- `make`
+- `libGL` and `libEGL`
+- `wayland-scanner` when Wayland support is enabled
+- `libX11` and `libXrandr` when X11 support is enabled
+- `wayland`, `wayland-egl`, and `libxkbcommon` when Wayland support is enabled
+- `dbus` when portal support is enabled
+
+By default, `make` builds all features:
+
+- `X11=1`
+- `WAYLAND=1`
+- `PORTAL=1`
+
+Full build and install:
 
 ```bash
 git clone https://github.com/yuzujr/coomer
 cd coomer
-xmake -y
+make -j"$(nproc)"
+sudo make install PREFIX=/usr
+```
+
+Feature flags:
+
+- `X11=0` disables the X11 capture/window backend
+- `WAYLAND=0` disables Wayland capture/window support
+- `PORTAL=0` disables the xdg-desktop-portal screenshot backend
+
+Examples:
+
+```bash
+# X11 only
+make WAYLAND=0 PORTAL=0 -j"$(nproc)"
+sudo make WAYLAND=0 PORTAL=0 install PREFIX=/usr
+
+# Wayland only, no portal
+make X11=0 PORTAL=0 -j"$(nproc)"
+sudo make X11=0 PORTAL=0 install PREFIX=/usr
+
+# Full build, but without portal support
+make PORTAL=0 -j"$(nproc)"
+sudo make PORTAL=0 install PREFIX=/usr
 ```
 
 ## Usage

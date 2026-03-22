@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=coomer
+GenericName=Screen magnifier
+Comment=Zoom and inspect your screen on Linux
+Exec=coomer
+Icon=coomer
+Terminal=false
+Categories=Graphics;Utility;
+Keywords=zoom;magnifier;screen;wayland;x11;
+StartupNotify=false

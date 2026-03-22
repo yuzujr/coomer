@@ -61,15 +61,7 @@ jobs:
 
   build:
     needs: prepare-release
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            asset_arch: x86_64
-          - runner: ubuntu-24.04-arm
-            asset_arch: arm64
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -88,39 +80,48 @@ jobs:
             libxrandr-dev \
             libdbus-1-dev \
             libglx-dev \
-            libglvnd-dev
+            libglvnd-dev \
+            desktop-file-utils \
+            squashfs-tools
 
-      - name: Setup xmake
-        uses: xmake-io/github-action-setup-xmake@v1
-        with:
-          xmake-version: latest
-
-      - name: Build
+      - name: Download linuxdeploy
         run: |
-          xmake config -m release -y
-          xmake build
+          mkdir -p .tools
 
-      - name: Package binary
+          curl -L \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage \
+            -o .tools/linuxdeploy-x86_64.AppImage
+
+          curl -L \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage \
+            -o .tools/linuxdeploy-plugin-appimage-x86_64.AppImage
+
+          chmod +x \
+            .tools/linuxdeploy-x86_64.AppImage \
+            .tools/linuxdeploy-plugin-appimage-x86_64.AppImage
+
+          ln -sf linuxdeploy-x86_64.AppImage .tools/linuxdeploy
+          ln -sf linuxdeploy-plugin-appimage-x86_64.AppImage .tools/linuxdeploy-plugin-appimage
+          echo "$PWD/.tools" >> "$GITHUB_PATH"
+
+      - name: Build AppImage
+        env:
+          ARCH: x86_64
+          VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          BINARY_PATH="$(find build -type f -path '*/release/coomer' -print -quit)"
-          if [ -z "$BINARY_PATH" ]; then
-            echo "Failed to locate built coomer binary." >&2
-            exit 1
-          fi
+          scripts/build-appimage.sh
 
-          ARCHIVE="coomer-v${{ needs.prepare-release.outputs.version }}-linux-${{ matrix.asset_arch }}.tar.gz"
-
+      - name: Package release assets
+        run: |
           mkdir -p release
-          cp "$BINARY_PATH" release/coomer
-          cp README.md LICENSE VERSION release/
-          cp -r completions release/
-          tar -C release -czf "$ARCHIVE" .
+          cp dist/*.AppImage release/
+          (cd release && sha256sum *.AppImage > SHA256SUMS)
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.asset_arch }}
-          path: coomer-v${{ needs.prepare-release.outputs.version }}-linux-${{ matrix.asset_arch }}.tar.gz
+          name: release-appimage
+          path: release/*
 
   create-release:
     needs:
@@ -141,7 +142,9 @@ jobs:
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag_name }}
           target_commitish: ${{ github.sha }}
-          files: release/*.tar.gz
+          files: |
+            release/*.AppImage
+            release/SHA256SUMS
           body: |
             ## coomer v${{ needs.prepare-release.outputs.version }}
 
@@ -149,12 +152,18 @@ jobs:
 
             ### Assets
 
-            - `coomer-v${{ needs.prepare-release.outputs.version }}-linux-x86_64.tar.gz`
-            - `coomer-v${{ needs.prepare-release.outputs.version }}-linux-arm64.tar.gz`
+            - `coomer-v${{ needs.prepare-release.outputs.version }}-linux-x86_64.AppImage`
 
             ### Installation
 
-            Extract the archive that matches your CPU architecture, then move `coomer` into your `$PATH`.
+            Download the AppImage, mark it executable, and run it:
+
+            ```bash
+            chmod +x coomer-v${{ needs.prepare-release.outputs.version }}-linux-x86_64.AppImage
+            ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-x86_64.AppImage
+            ```
+
+            On NixOS, run it with `appimage-run`.
 
             See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed documentation.
           draft: false

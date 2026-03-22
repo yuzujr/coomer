@@ -1,7 +1,10 @@
 .cache/
+.cache-nix/
 .direnv/
 .xmake/
 .envrc
 
+.tools/
 build/
+dist/
 generated/
