@@ -12,38 +12,26 @@ Zoomer application for everyone on Linux.
 ## Installation
 
 ### AppImage
-Install from [releases](https://github.com/yuzujr/coomer/releases).
-
-Release artifacts are published for `x86_64` and `aarch64`:
-
-```bash
-chmod +x coomer-vX.Y.Z-linux-<arch>.AppImage
-./coomer-vX.Y.Z-linux-<arch>.AppImage
-```
-
-If FUSE is unavailable on your system:
-
-```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./coomer-vX.Y.Z-linux-<arch>.AppImage --version
-```
-
-On NixOS, run it with:
-
-```bash
-appimage-run ./coomer-vX.Y.Z-linux-<arch>.AppImage
-```
+Download an AppImage from [releases](https://github.com/yuzujr/coomer/releases).
 
 ### Arch Linux (AUR)
-`coomer` — build from source, with dependencies handled by pacman
+* `coomer` — build from source
+* `coomer-bin` — AppImage
+
+Install one of them:
 
 use `paru`:
 ```bash
 paru -S coomer
+# or
+paru -S coomer-bin
 ```
 
 or use `yay`:
 ```bash
 yay -S coomer
+# or
+yay -S coomer-bin
 ```
 
 ### NixOS
@@ -87,21 +75,6 @@ By default, `make` builds all features:
 - `X11=1`
 - `WAYLAND=1`
 - `PORTAL=1`
-
-Full build and install:
-
-```bash
-git clone https://github.com/yuzujr/coomer
-cd coomer
-make -j"$(nproc)"
-sudo make install PREFIX=/usr
-```
-
-Feature flags:
-
-- `X11=0` disables the X11 capture/window backend
-- `WAYLAND=0` disables Wayland capture/window support
-- `PORTAL=0` disables the xdg-desktop-portal screenshot backend
 
 Examples:
 
