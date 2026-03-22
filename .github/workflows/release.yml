@@ -164,11 +164,11 @@ jobs:
 
             ### Installation
 
-            Download the AppImage, mark it executable, and run it:
+            Download the AppImage for your CPU architecture, make it executable, and run it:
 
             ```bash
             chmod +x coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage
-            ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage
+            ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage --version
             ```
 
             If FUSE is unavailable on your system:
