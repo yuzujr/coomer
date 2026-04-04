@@ -103,11 +103,6 @@
                 gdb
               ]
               ++ systemLibs;
-
-            shellHook = ''
-              echo "coomer dev shell"
-              echo "  make              — build with plain make"
-            '';
           };
         }
       );
