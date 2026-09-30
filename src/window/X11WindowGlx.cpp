@@ -94,6 +94,11 @@ public:
 
         XStoreName(display_, window_, config.title.c_str());
 
+        XClassHint classHint{};
+        classHint.res_name = const_cast<char*>("coomer");
+        classHint.res_class = const_cast<char*>("coomer");
+        XSetClassHint(display_, window_, &classHint);
+
         wmDelete_ = XInternAtom(display_, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(display_, window_, &wmDelete_, 1);
 

@@ -91,7 +91,9 @@ jobs:
             libglx-dev \
             libglvnd-dev \
             desktop-file-utils \
-            squashfs-tools
+            squashfs-tools \
+            x11-utils \
+            xvfb
 
       - name: Download linuxdeploy
         run: |
@@ -128,6 +130,54 @@ jobs:
           APPIMAGE="dist/coomer-v${VERSION}-${ARCH}.AppImage"
           test -x "$APPIMAGE"
           APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --version | grep -Fx "coomer ${VERSION}"
+
+      - name: Smoke test AppImage window
+        env:
+          ARCH: ${{ matrix.arch }}
+          DISPLAY: :99
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          APPIMAGE="dist/coomer-v${VERSION}-${ARCH}.AppImage"
+          APP_PID=""
+          XVFB_PID=""
+
+          cleanup() {
+            if [ -n "$APP_PID" ]; then
+              kill "$APP_PID" 2>/dev/null || true
+            fi
+            if [ -n "$XVFB_PID" ]; then
+              kill "$XVFB_PID" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          Xvfb "$DISPLAY" -screen 0 800x600x24 &
+          XVFB_PID=$!
+          for _ in $(seq 1 20); do
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.25
+          done
+          xdpyinfo -display "$DISPLAY" >/dev/null
+
+          APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" &
+          APP_PID=$!
+          for _ in $(seq 1 30); do
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              wait "$APP_PID"
+            fi
+            if xwininfo -display "$DISPLAY" -root -tree |
+              grep -Fq '"coomer": ("coomer" "coomer")'; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "coomer did not open an identifiable X11 window" >&2
+          xwininfo -display "$DISPLAY" -root -tree >&2
+          exit 1
 
       - name: Package release assets
         run: |
