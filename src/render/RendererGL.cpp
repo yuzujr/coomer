@@ -131,6 +131,16 @@ bool RendererGL::uploadScreenshotTexture(const ImageRGBA& image) {
     }
     imageW_ = image.w;
     imageH_ = image.h;
+    uniformImage_ = true;
+    for (size_t i = 4; i < image.rgba.size(); i += 4) {
+        if (image.rgba[i] != image.rgba[0] ||
+            image.rgba[i + 1] != image.rgba[1] ||
+            image.rgba[i + 2] != image.rgba[2] ||
+            image.rgba[i + 3] != image.rgba[3]) {
+            uniformImage_ = false;
+            break;
+        }
+    }
 
     glBindTexture(GL_TEXTURE_2D, tex_);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image.w, image.h, 0, GL_RGBA,
@@ -162,6 +172,7 @@ void RendererGL::renderFrame(const CameraState& camera,
     GLint locRadius = glGetUniformLocation(program_, "u_radius");
     GLint locTint = glGetUniformLocation(program_, "u_tint");
     GLint locSpotlight = glGetUniformLocation(program_, "u_spotlight");
+    GLint locUniformImage = glGetUniformLocation(program_, "u_uniformImage");
 
     glUniform1i(locTex, 0);
     glUniform2f(locImageSize, static_cast<float>(imageW_),
@@ -175,6 +186,7 @@ void RendererGL::renderFrame(const CameraState& camera,
     glUniform4f(locTint, spotlight.tintR, spotlight.tintG, spotlight.tintB,
                 spotlight.tintA);
     glUniform1i(locSpotlight, spotlight.enabled ? 1 : 0);
+    glUniform1i(locUniformImage, uniformImage_ ? 1 : 0);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex_);

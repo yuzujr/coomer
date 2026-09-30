@@ -41,6 +41,7 @@ private:
     unsigned int tex_ = 0;
     int imageW_ = 0;
     int imageH_ = 0;
+    bool uniformImage_ = false;
 };
 
 }  // namespace coomer

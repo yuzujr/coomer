@@ -91,6 +91,7 @@ jobs:
             libglx-dev \
             libglvnd-dev \
             desktop-file-utils \
+            imagemagick \
             squashfs-tools \
             x11-utils \
             xvfb
@@ -164,20 +165,37 @@ jobs:
 
           APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" &
           APP_PID=$!
+          WINDOW_FOUND=0
           for _ in $(seq 1 30); do
             if ! kill -0 "$APP_PID" 2>/dev/null; then
               wait "$APP_PID"
             fi
             if xwininfo -display "$DISPLAY" -root -tree |
               grep -Fq '"coomer": ("coomer" "coomer")'; then
-              exit 0
+              WINDOW_FOUND=1
+              break
             fi
             sleep 1
           done
 
-          echo "coomer did not open an identifiable X11 window" >&2
-          xwininfo -display "$DISPLAY" -root -tree >&2
-          exit 1
+          if [ "$WINDOW_FOUND" -ne 1 ]; then
+            echo "coomer did not open an identifiable X11 window" >&2
+            xwininfo -display "$DISPLAY" -root -tree >&2
+            exit 1
+          fi
+
+          sleep 1
+          import -display "$DISPLAY" -window root screenshot.png
+          read -r TOP TOTAL < <(
+            convert screenshot.png -alpha off -depth 8 -format "%c" histogram:info:- |
+              sort -rn |
+              awk -v size="$(identify -format '%w %h' screenshot.png)" \
+                'NR == 1 { top = $1 + 0 } END { split(size, s, " "); print top, s[1] * s[2] }'
+          )
+          SHARE=$(awk -v top="$TOP" -v total="$TOTAL" \
+            'BEGIN { printf "%d", 100 * top / total }')
+          echo "Most common screenshot color: ${SHARE}%"
+          test "$SHARE" -lt 95
 
       - name: Package release assets
         run: |
