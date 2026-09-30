@@ -47,4 +47,4 @@ if [[ -z "$APPIMAGE_PATH" ]]; then
   exit 1
 fi
 
-mv "$APPIMAGE_PATH" "$OUTPUT_DIR/coomer-v${APP_VERSION}-linux-${ARCH}.AppImage"
+mv "$APPIMAGE_PATH" "$OUTPUT_DIR/coomer-v${APP_VERSION}-${ARCH}.AppImage"

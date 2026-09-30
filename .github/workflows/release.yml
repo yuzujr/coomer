@@ -68,9 +68,9 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
           - arch: aarch64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-22.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -120,6 +120,15 @@ jobs:
         run: |
           scripts/build-appimage.sh
 
+      - name: Smoke test AppImage
+        env:
+          ARCH: ${{ matrix.arch }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          APPIMAGE="dist/coomer-v${VERSION}-${ARCH}.AppImage"
+          test -x "$APPIMAGE"
+          APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --version | grep -Fx "coomer ${VERSION}"
+
       - name: Package release assets
         run: |
           mkdir -p release
@@ -159,22 +168,22 @@ jobs:
 
             ### Assets
 
-            - `coomer-v${{ needs.prepare-release.outputs.version }}-linux-x86_64.AppImage`
-            - `coomer-v${{ needs.prepare-release.outputs.version }}-linux-aarch64.AppImage`
+            - `coomer-v${{ needs.prepare-release.outputs.version }}-x86_64.AppImage`
+            - `coomer-v${{ needs.prepare-release.outputs.version }}-aarch64.AppImage`
 
             ### Installation
 
             Download the AppImage for your CPU architecture, make it executable, and run it:
 
             ```bash
-            chmod +x coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage
-            ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage --version
+            chmod +x coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage
+            ./coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage --version
             ```
 
             If FUSE is unavailable on your system:
 
             ```bash
-            APPIMAGE_EXTRACT_AND_RUN=1 ./coomer-v${{ needs.prepare-release.outputs.version }}-linux-<arch>.AppImage --version
+            APPIMAGE_EXTRACT_AND_RUN=1 ./coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage --version
             ```
 
             On NixOS, run it with `appimage-run`.
