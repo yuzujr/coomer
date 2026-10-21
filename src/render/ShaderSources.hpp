@@ -27,6 +27,8 @@ uniform float u_radius;
 uniform vec4 u_tint;
 uniform int u_spotlight;
 uniform int u_uniformImage;
+uniform sampler2D u_statusTex;
+uniform vec2 u_statusSize;
 
 out vec4 FragColor;
 
@@ -41,39 +43,30 @@ void main() {
         color = vec4(0.0, 0.0, 0.0, 1.0);
     }
 
-    // A completely uniform capture gives users no visual confirmation that
-    // the magnifier is running. Add a subtle placeholder only in that edge
-    // case; normal screenshots remain pixel-for-pixel unchanged.
-    if (u_uniformImage == 1) {
-        vec2 tile = floor(screen / 48.0);
-        float checker = mod(tile.x + tile.y, 2.0);
-        vec3 shadeA = mix(color.rgb, vec3(0.12, 0.16, 0.22), 0.18);
-        vec3 shadeB = mix(color.rgb, vec3(0.24, 0.38, 0.58), 0.28);
-        color.rgb = mix(shadeA, shadeB, checker);
-
-        float scale = min(u_screenSize.x, u_screenSize.y);
-        vec2 p = (screen - u_screenSize * 0.5) / scale;
-        vec2 lensCenter = vec2(-0.05, 0.04);
-        float ringDistance = abs(length(p - lensCenter) - 0.14);
-        float ring = 1.0 - smoothstep(0.008, 0.016, ringDistance);
-
-        vec2 handleStart = vec2(0.05, -0.06);
-        vec2 handleEnd = vec2(0.20, -0.21);
-        vec2 pa = p - handleStart;
-        vec2 ba = handleEnd - handleStart;
-        float alongHandle = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-        float handleDistance = length(pa - ba * alongHandle);
-        float handle = 1.0 - smoothstep(0.012, 0.025, handleDistance);
-
-        color.rgb = mix(color.rgb, vec3(0.35, 0.72, 1.0), max(ring, handle));
-    }
-
     if (u_spotlight == 1) {
         float dist = distance(screen, u_cursor);
         float feather = max(2.0, u_radius * 0.08);
         float edge = smoothstep(u_radius, u_radius + feather, dist);
         float tintAmount = u_tint.a * edge;
         color.rgb = mix(color.rgb, u_tint.rgb, tintAmount);
+    }
+
+    // Keep the captured pixels intact. When the source really is one color,
+    // add a labelled status card instead of inventing replacement content.
+    if (u_uniformImage == 1) {
+        float statusScale = min(1.0, (u_screenSize.x - 32.0) / u_statusSize.x);
+        statusScale = max(statusScale, 0.25);
+        vec2 displaySize = u_statusSize * statusScale;
+        vec2 origin = vec2((u_screenSize.x - displaySize.x) * 0.5,
+                           u_screenSize.y - displaySize.y - 20.0);
+        vec2 local = screen - origin;
+        if (local.x >= 0.0 && local.y >= 0.0 &&
+            local.x < displaySize.x && local.y < displaySize.y) {
+            vec2 statusUv = local / displaySize;
+            statusUv.y = 1.0 - statusUv.y;
+            vec4 status = texture(u_statusTex, statusUv);
+            color.rgb = mix(color.rgb, status.rgb, status.a);
+        }
     }
 
     FragColor = color;

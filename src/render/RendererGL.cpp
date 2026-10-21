@@ -2,6 +2,7 @@
 
 #include <glad/gl.h>
 
+#include <array>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -10,6 +11,110 @@
 #include "render/ShaderSources.hpp"
 
 namespace coomer {
+
+namespace {
+
+using Glyph = std::array<uint8_t, 7>;
+
+Glyph glyphFor(char c) {
+    switch (c) {
+        case 'A': return {0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11};
+        case 'C': return {0x0e, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0e};
+        case 'D': return {0x1e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1e};
+        case 'E': return {0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x1f};
+        case 'G': return {0x0e, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0f};
+        case 'H': return {0x11, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11};
+        case 'I': return {0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x1f};
+        case 'K': return {0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11};
+        case 'L': return {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1f};
+        case 'N': return {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11};
+        case 'O': return {0x0e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e};
+        case 'P': return {0x1e, 0x11, 0x11, 0x1e, 0x10, 0x10, 0x10};
+        case 'Q': return {0x0e, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0d};
+        case 'R': return {0x1e, 0x11, 0x11, 0x1e, 0x14, 0x12, 0x11};
+        case 'S': return {0x0f, 0x10, 0x10, 0x0e, 0x01, 0x01, 0x1e};
+        case 'T': return {0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04};
+        case 'U': return {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e};
+        case 'X': return {0x11, 0x11, 0x0a, 0x04, 0x0a, 0x11, 0x11};
+        default: return {};
+    }
+}
+
+void putPixel(std::vector<uint8_t>& pixels, int width, int height, int x,
+              int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+        return;
+    }
+    const size_t offset = static_cast<size_t>((y * width + x) * 4);
+    pixels[offset] = r;
+    pixels[offset + 1] = g;
+    pixels[offset + 2] = b;
+    pixels[offset + 3] = a;
+}
+
+void drawText(std::vector<uint8_t>& pixels, int width, int height,
+              const std::string& text, int originX, int originY, int scale,
+              uint8_t r, uint8_t g, uint8_t b) {
+    int x = originX;
+    for (char c : text) {
+        const Glyph glyph = glyphFor(c);
+        for (int row = 0; row < 7; ++row) {
+            for (int col = 0; col < 5; ++col) {
+                if ((glyph[row] & (1u << (4 - col))) == 0) {
+                    continue;
+                }
+                for (int dy = 0; dy < scale; ++dy) {
+                    for (int dx = 0; dx < scale; ++dx) {
+                        putPixel(pixels, width, height, x + col * scale + dx,
+                                 originY + row * scale + dy, r, g, b, 255);
+                    }
+                }
+            }
+        }
+        x += 6 * scale;
+    }
+}
+
+std::vector<uint8_t> makeUniformCaptureStatus(int width, int height) {
+    std::vector<uint8_t> pixels(
+        static_cast<size_t>(width * height * 4), 0);
+    constexpr int radius = 10;
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const int cornerX = x < radius ? radius :
+                (x >= width - radius ? width - radius - 1 : x);
+            const int cornerY = y < radius ? radius :
+                (y >= height - radius ? height - radius - 1 : y);
+            const int dx = x - cornerX;
+            const int dy = y - cornerY;
+            if (dx * dx + dy * dy > radius * radius) {
+                continue;
+            }
+
+            const bool border = x < 2 || y < 2 || x >= width - 2 ||
+                                y >= height - 2;
+            if (border) {
+                putPixel(pixels, width, height, x, y, 96, 165, 250, 245);
+            } else {
+                putPixel(pixels, width, height, x, y, 17, 24, 39, 235);
+            }
+        }
+    }
+
+    for (int y = 12; y < height - 12; ++y) {
+        for (int x = 14; x < 18; ++x) {
+            putPixel(pixels, width, height, x, y, 96, 165, 250, 255);
+        }
+    }
+
+    drawText(pixels, width, height, "CAPTURED SCREEN IS A SINGLE COLOR", 28,
+             13, 2, 248, 250, 252);
+    drawText(pixels, width, height, "Q OR RIGHT CLICK TO EXIT", 28, 43, 2,
+             147, 197, 253);
+    return pixels;
+}
+
+}  // namespace
 
 static GLuint compileShader(GLenum type, const char* source) {
     GLuint shader = glCreateShader(type);
@@ -121,6 +226,20 @@ bool RendererGL::initGL(std::function<void*(const char*)> loaderProc) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    statusW_ = 448;
+    statusH_ = 72;
+    const std::vector<uint8_t> statusPixels =
+        makeUniformCaptureStatus(statusW_, statusH_);
+    glGenTextures(1, &statusTex_);
+    glBindTexture(GL_TEXTURE_2D, statusTex_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, statusW_, statusH_, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, statusPixels.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     return true;
 }
 
@@ -140,6 +259,9 @@ bool RendererGL::uploadScreenshotTexture(const ImageRGBA& image) {
             uniformImage_ = false;
             break;
         }
+    }
+    if (uniformImage_) {
+        LOG_INFO("captured screen is a single color; showing status overlay");
     }
 
     glBindTexture(GL_TEXTURE_2D, tex_);
@@ -173,8 +295,11 @@ void RendererGL::renderFrame(const CameraState& camera,
     GLint locTint = glGetUniformLocation(program_, "u_tint");
     GLint locSpotlight = glGetUniformLocation(program_, "u_spotlight");
     GLint locUniformImage = glGetUniformLocation(program_, "u_uniformImage");
+    GLint locStatusTex = glGetUniformLocation(program_, "u_statusTex");
+    GLint locStatusSize = glGetUniformLocation(program_, "u_statusSize");
 
     glUniform1i(locTex, 0);
+    glUniform1i(locStatusTex, 1);
     glUniform2f(locImageSize, static_cast<float>(imageW_),
                 static_cast<float>(imageH_));
     glUniform2f(locScreenSize, static_cast<float>(camera.screenW),
@@ -187,13 +312,20 @@ void RendererGL::renderFrame(const CameraState& camera,
                 spotlight.tintA);
     glUniform1i(locSpotlight, spotlight.enabled ? 1 : 0);
     glUniform1i(locUniformImage, uniformImage_ ? 1 : 0);
+    glUniform2f(locStatusSize, static_cast<float>(statusW_),
+                static_cast<float>(statusH_));
 
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, statusTex_);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex_);
     glBindVertexArray(vao_);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
     glUseProgram(0);
 }
 

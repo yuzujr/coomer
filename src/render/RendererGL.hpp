@@ -39,8 +39,11 @@ private:
     unsigned int vao_ = 0;
     unsigned int vbo_ = 0;
     unsigned int tex_ = 0;
+    unsigned int statusTex_ = 0;
     int imageW_ = 0;
     int imageH_ = 0;
+    int statusW_ = 0;
+    int statusH_ = 0;
     bool uniformImage_ = false;
 };
 

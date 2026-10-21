@@ -141,11 +141,15 @@ jobs:
         run: |
           APPIMAGE="dist/coomer-v${VERSION}-${ARCH}.AppImage"
           APP_PID=""
+          SCENE_PID=""
           XVFB_PID=""
 
           cleanup() {
             if [ -n "$APP_PID" ]; then
               kill "$APP_PID" 2>/dev/null || true
+            fi
+            if [ -n "$SCENE_PID" ]; then
+              kill "$SCENE_PID" 2>/dev/null || true
             fi
             if [ -n "$XVFB_PID" ]; then
               kill "$XVFB_PID" 2>/dev/null || true
@@ -162,6 +166,27 @@ jobs:
             sleep 0.25
           done
           xdpyinfo -display "$DISPLAY" >/dev/null
+
+          xmessage -display "$DISPLAY" \
+            -geometry 420x180+190+210 \
+            -title "coomer AppImage smoke test" \
+            -buttons "Ready:0" \
+            "This is deterministic screen content for coomer to capture." &
+          SCENE_PID=$!
+          SCENE_FOUND=0
+          for _ in $(seq 1 20); do
+            if xwininfo -display "$DISPLAY" -root -tree |
+              grep -Fq '"coomer AppImage smoke test"'; then
+              SCENE_FOUND=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$SCENE_FOUND" -ne 1 ]; then
+            echo "failed to create the X11 capture scene" >&2
+            exit 1
+          fi
+          import -display "$DISPLAY" -window root expected.png
 
           APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" &
           APP_PID=$!
@@ -185,17 +210,12 @@ jobs:
           fi
 
           sleep 1
-          import -display "$DISPLAY" -window root screenshot.png
-          read -r TOP TOTAL < <(
-            convert screenshot.png -alpha off -depth 8 -format "%c" histogram:info:- |
-              sort -rn |
-              awk -v size="$(identify -format '%w %h' screenshot.png)" \
-                'NR == 1 { top = $1 + 0 } END { split(size, s, " "); print top, s[1] * s[2] }'
-          )
-          SHARE=$(awk -v top="$TOP" -v total="$TOTAL" \
-            'BEGIN { printf "%d", 100 * top / total }')
-          echo "Most common screenshot color: ${SHARE}%"
-          test "$SHARE" -lt 95
+          import -display "$DISPLAY" -window root actual.png
+          ERROR=$(compare -metric RMSE expected.png actual.png null: 2>&1 |
+            sed -n 's/.*(\([^)]*\)).*/\1/p' || true)
+          test -n "$ERROR"
+          echo "Rendered screenshot RMSE: ${ERROR}"
+          awk -v error="$ERROR" 'BEGIN { exit !(error < 0.02) }'
 
       - name: Package release assets
         run: |
