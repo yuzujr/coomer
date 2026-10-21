@@ -111,7 +111,9 @@ Options:
 Hotkeys:
   Q or A or Right click: quit
   Hold Left click: pan
-  Scroll wheel: zoom
+  Scroll wheel: zoom (0.05x to 32x)
+  Hold Space: overview
+  1: reset view
   Hold Ctrl: spotlight (Ctrl + wheel to resize)
 ```
 

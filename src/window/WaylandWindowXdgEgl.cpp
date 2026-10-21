@@ -547,6 +547,10 @@ private:
             self->input_.keyQ = pressed;
         } else if (sym == XKB_KEY_a || sym == XKB_KEY_A) {
             self->input_.keyA = pressed;
+        } else if (sym == XKB_KEY_space) {
+            self->input_.keySpace = pressed;
+        } else if (sym == XKB_KEY_1) {
+            self->input_.keyOne = pressed;
         }
     }
 

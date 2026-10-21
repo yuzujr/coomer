@@ -227,6 +227,13 @@ int main(int argc, char** argv) {
     float spotlightRadiusMulCurrent = 1.0f;
     bool prevLeft = false;
     bool prevSpotlight = false;
+    bool prevSpace = false;
+    bool prevOne = false;
+    bool returningFromOverview = false;
+    CameraState overviewReturnCamera;
+    const float homeZoom = camera.zoom;
+    const float homePanX = camera.panX;
+    const float homePanY = camera.panY;
     bool spotlightAnimating = false;
     double spotlightAnimStart = 0.0;
     float spotlightAnimFrom = 0.0f;
@@ -254,14 +261,42 @@ int main(int argc, char** argv) {
         float deltaX = static_cast<float>(input.deltaX);
         float deltaY = static_cast<float>(-input.deltaY);
 
-        if (input.mouseLeft) {
+        const bool spacePressed = input.keySpace && !prevSpace;
+        const bool spaceReleased = !input.keySpace && prevSpace;
+        const bool resetPressed = input.keyOne && !prevOne;
+        prevSpace = input.keySpace;
+        prevOne = input.keyOne;
+
+        if (spacePressed) {
+            overviewReturnCamera = camera;
+            returningFromOverview = false;
+            panVelX = 0.0f;
+            panVelY = 0.0f;
+            zoomVel = 0.0f;
+        } else if (spaceReleased) {
+            returningFromOverview = true;
+        }
+
+        if (resetPressed) {
+            camera.zoom = homeZoom;
+            camera.panX = homePanX;
+            camera.panY = homePanY;
+            panVelX = 0.0f;
+            panVelY = 0.0f;
+            zoomVel = 0.0f;
+            returningFromOverview = false;
+        }
+
+        const bool cameraTransition = input.keySpace || returningFromOverview;
+
+        if (!cameraTransition && input.mouseLeft) {
             camera.panX += deltaX;
             camera.panY += deltaY;
             if (dt > 0.0f) {
                 panVelX = deltaX / dt;
                 panVelY = deltaY / dt;
             }
-        } else if (!prevLeft) {
+        } else if (!cameraTransition && !prevLeft) {
             camera.panX += panVelX * dt;
             camera.panY += panVelY * dt;
             float decay = std::exp(-6.0f * dt);
@@ -277,7 +312,7 @@ int main(int argc, char** argv) {
         }
         prevLeft = input.mouseLeft;
 
-        if (input.wheelDelta != 0.0) {
+        if (!cameraTransition && input.wheelDelta != 0.0) {
             float wheel = static_cast<float>(-input.wheelDelta);
             if (input.keyCtrl) {
                 spotlightRadiusMulTarget += wheel * 0.35f;
@@ -288,10 +323,10 @@ int main(int argc, char** argv) {
             }
         }
 
-        if (std::abs(zoomVel) > 0.0001f) {
+        if (!cameraTransition && std::abs(zoomVel) > 0.0001f) {
             float oldZoom = camera.zoom;
             float factor = std::exp(zoomVel * dt);
-            camera.zoom = std::clamp(camera.zoom * factor, 1.0f, 10.0f);
+            camera.zoom = std::clamp(camera.zoom * factor, 0.05f, 32.0f);
             if (camera.zoom != oldZoom) {
                 float ratio = camera.zoom / oldZoom;
                 camera.panX = cursorX - (cursorX - camera.panX) * ratio;
@@ -303,6 +338,37 @@ int main(int argc, char** argv) {
             // Stop zoom momentum when velocity becomes imperceptible
             if (std::abs(zoomVel) < 0.01f) {
                 zoomVel = 0.0f;
+            }
+        }
+
+        if (input.keySpace) {
+            const float screenW = static_cast<float>(window->width());
+            const float screenH = static_cast<float>(window->height());
+            const float fitZoom = std::min(
+                screenW / static_cast<float>(capture.image.w),
+                screenH / static_cast<float>(capture.image.h));
+            const float targetZoom = std::clamp(fitZoom * 0.78f, 0.05f, 1.0f);
+            const float targetPanX =
+                (screenW - capture.image.w * targetZoom) * 0.5f;
+            const float targetPanY =
+                (screenH - capture.image.h * targetZoom) * 0.5f;
+            const float blend = 1.0f - std::exp(-12.0f * dt);
+            camera.zoom += (targetZoom - camera.zoom) * blend;
+            camera.panX += (targetPanX - camera.panX) * blend;
+            camera.panY += (targetPanY - camera.panY) * blend;
+        } else if (returningFromOverview) {
+            const float blend = 1.0f - std::exp(-12.0f * dt);
+            camera.zoom +=
+                (overviewReturnCamera.zoom - camera.zoom) * blend;
+            camera.panX +=
+                (overviewReturnCamera.panX - camera.panX) * blend;
+            camera.panY +=
+                (overviewReturnCamera.panY - camera.panY) * blend;
+            if (std::abs(camera.zoom - overviewReturnCamera.zoom) < 0.001f &&
+                std::abs(camera.panX - overviewReturnCamera.panX) < 0.5f &&
+                std::abs(camera.panY - overviewReturnCamera.panY) < 0.5f) {
+                camera = overviewReturnCamera;
+                returningFromOverview = false;
             }
         }
 

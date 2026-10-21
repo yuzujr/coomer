@@ -31,7 +31,9 @@ static void printUsage(const char* exe) {
               << "Hotkeys:\n"
               << "  Q or A or Right click: quit\n"
               << "  Hold Left click: pan\n"
-              << "  Scroll wheel: zoom\n"
+              << "  Scroll wheel: zoom (0.05x to 32x)\n"
+              << "  Hold Space: overview\n"
+              << "  1: reset view\n"
               << "  Hold Ctrl: spotlight (Ctrl + wheel to resize)\n";
 }
 

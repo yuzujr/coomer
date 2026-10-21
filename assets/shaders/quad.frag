@@ -24,7 +24,24 @@ void main() {
     vec4 color = texture(u_tex, uv);
 
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-        color = vec4(0.0, 0.0, 0.0, 1.0);
+        vec2 cell = abs(mod(screen, 48.0) - 24.0);
+        float pixel = 1.0 - step(1.2, max(cell.x, cell.y));
+        vec3 canvas = vec3(0.018, 0.023, 0.034) +
+                      vec3(0.025, 0.045, 0.075) * pixel;
+
+        vec2 imageMin = u_pan;
+        vec2 imageMax = u_pan + u_imageSize * u_zoom;
+        vec2 nearest = clamp(screen, imageMin, imageMax);
+        float edgeDistance = length(screen - nearest);
+        float shadow = 1.0 - smoothstep(0.0, 28.0, edgeDistance);
+        color = vec4(mix(canvas, vec3(0.0), shadow * 0.55), 1.0);
+    } else {
+        vec2 edgePx = min(img, u_imageSize - img) * u_zoom;
+        float edgeDistance = min(edgePx.x, edgePx.y);
+        float border = 1.0 - smoothstep(0.0, 1.5, edgeDistance);
+        float cardMode = 1.0 - smoothstep(0.985, 1.0, u_zoom);
+        color.rgb = mix(color.rgb, vec3(0.38, 0.65, 0.98),
+                        border * cardMode * 0.72);
     }
 
     if (u_spotlight == 1) {
