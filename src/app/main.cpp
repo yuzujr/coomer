@@ -240,6 +240,9 @@ int main(int argc, char** argv) {
     float spotlightAnimTo = 0.0f;
 
     double lastTime = nowSeconds();
+    double inspectorLastActive = lastTime;
+    float inspectorOpacity = 0.0f;
+    bool inspectorWasAvailable = false;
 
     while (!window->shouldClose()) {
         window->pollEvents();
@@ -375,6 +378,33 @@ int main(int argc, char** argv) {
         camera.screenW = window->width();
         camera.screenH = window->height();
 
+        const float inspectorImageX =
+            (cursorX - camera.panX) / camera.zoom;
+        const float inspectorImageY =
+            (cursorY - camera.panY) / camera.zoom;
+        const bool inspectorAvailable =
+            camera.zoom >= 6.0f && inspectorImageX >= 0.0f &&
+            inspectorImageY >= 0.0f &&
+            inspectorImageX < static_cast<float>(capture.image.w) &&
+            inspectorImageY < static_cast<float>(capture.image.h);
+        const bool inspectorActivity =
+            input.wheelDelta != 0.0 || input.mouseLeft ||
+            std::abs(input.deltaX) > 0.01 ||
+            std::abs(input.deltaY) > 0.01 ||
+            (inspectorAvailable && !inspectorWasAvailable);
+        if (inspectorAvailable && inspectorActivity) {
+            inspectorLastActive = now;
+        }
+        inspectorWasAvailable = inspectorAvailable;
+
+        const bool showInspector =
+            inspectorAvailable && now - inspectorLastActive < 1.5;
+        const float inspectorBlend =
+            1.0f - std::exp(-(showInspector ? 14.0f : 5.0f) * dt);
+        const float inspectorTarget = showInspector ? 1.0f : 0.0f;
+        inspectorOpacity +=
+            (inspectorTarget - inspectorOpacity) * inspectorBlend;
+
         float follow = 1.0f - std::exp(-14.0f * dt);
         spotlightRadiusMulCurrent +=
             (spotlightRadiusMulTarget - spotlightRadiusMulCurrent) * follow;
@@ -420,7 +450,7 @@ int main(int argc, char** argv) {
         spotlight.tintA = 190.0f / 255.0f;
         prevSpotlight = spotlight.enabled;
 
-        renderer.renderFrame(camera, spotlight);
+        renderer.renderFrame(camera, spotlight, inspectorOpacity);
         window->swap();
     }
 

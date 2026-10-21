@@ -29,6 +29,10 @@ uniform int u_spotlight;
 uniform int u_uniformImage;
 uniform sampler2D u_statusTex;
 uniform vec2 u_statusSize;
+uniform sampler2D u_inspectorTex;
+uniform vec2 u_inspectorSize;
+uniform int u_inspector;
+uniform float u_inspectorOpacity;
 
 out vec4 FragColor;
 
@@ -40,24 +44,18 @@ void main() {
     vec4 color = texture(u_tex, uv);
 
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-        vec2 cell = abs(mod(screen, 48.0) - 24.0);
-        float pixel = 1.0 - step(1.2, max(cell.x, cell.y));
-        vec3 canvas = vec3(0.018, 0.023, 0.034) +
-                      vec3(0.025, 0.045, 0.075) * pixel;
+        color = vec4(0.0, 0.0, 0.0, 1.0);
+    } else if (u_zoom >= 8.0) {
+        ivec2 pixelCoord = ivec2(floor(img.x),
+                                 u_imageSize.y - 1.0 - floor(img.y));
+        pixelCoord = clamp(pixelCoord, ivec2(0), ivec2(u_imageSize) - 1);
+        color = texelFetch(u_tex, pixelCoord, 0);
 
-        vec2 imageMin = u_pan;
-        vec2 imageMax = u_pan + u_imageSize * u_zoom;
-        vec2 nearest = clamp(screen, imageMin, imageMax);
-        float edgeDistance = length(screen - nearest);
-        float shadow = 1.0 - smoothstep(0.0, 28.0, edgeDistance);
-        color = vec4(mix(canvas, vec3(0.0), shadow * 0.55), 1.0);
-    } else {
-        vec2 edgePx = min(img, u_imageSize - img) * u_zoom;
-        float edgeDistance = min(edgePx.x, edgePx.y);
-        float border = 1.0 - smoothstep(0.0, 1.5, edgeDistance);
-        float cardMode = 1.0 - smoothstep(0.985, 1.0, u_zoom);
-        color.rgb = mix(color.rgb, vec3(0.38, 0.65, 0.98),
-                        border * cardMode * 0.72);
+        vec2 withinPixel = fract(img);
+        vec2 edgeDistance = min(withinPixel, 1.0 - withinPixel);
+        float gridDistance = min(edgeDistance.x, edgeDistance.y);
+        float grid = 1.0 - smoothstep(0.0, 0.7 / u_zoom, gridDistance);
+        color.rgb = mix(color.rgb, vec3(0.02), grid * 0.38);
     }
 
     if (u_spotlight == 1) {
@@ -83,6 +81,27 @@ void main() {
             statusUv.y = 1.0 - statusUv.y;
             vec4 status = texture(u_statusTex, statusUv);
             color.rgb = mix(color.rgb, status.rgb, status.a);
+        }
+    }
+
+    if (u_inspector == 1) {
+        vec2 origin = u_cursor + vec2(18.0);
+        if (origin.x + u_inspectorSize.x > u_screenSize.x - 8.0) {
+            origin.x = u_cursor.x - u_inspectorSize.x - 18.0;
+        }
+        if (origin.y + u_inspectorSize.y > u_screenSize.y - 8.0) {
+            origin.y = u_cursor.y - u_inspectorSize.y - 18.0;
+        }
+        origin = clamp(origin, vec2(8.0),
+                       max(vec2(8.0), u_screenSize - u_inspectorSize - 8.0));
+        vec2 local = screen - origin;
+        if (local.x >= 0.0 && local.y >= 0.0 &&
+            local.x < u_inspectorSize.x && local.y < u_inspectorSize.y) {
+            vec2 inspectorUv = local / u_inspectorSize;
+            inspectorUv.y = 1.0 - inspectorUv.y;
+            vec4 inspector = texture(u_inspectorTex, inspectorUv);
+            color.rgb = mix(color.rgb, inspector.rgb,
+                            inspector.a * u_inspectorOpacity);
         }
     }
 
