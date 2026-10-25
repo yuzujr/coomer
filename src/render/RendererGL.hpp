@@ -34,13 +34,15 @@ public:
     bool uploadScreenshotTexture(const ImageRGBA& image);
     void renderFrame(const CameraState& camera,
                      const SpotlightState& spotlight,
-                     float inspectorOpacity = 0.0f);
+                     float inspectorOpacity = 0.0f, bool pixelMode = false,
+                     const std::string& notice = "");
+    std::string colorAt(const CameraState& camera, float x, float y) const;
 
 private:
     bool compileShaders();
     bool updateInspectorTexture(const CameraState& camera,
                                 const SpotlightState& spotlight,
-                                float opacity);
+                                float opacity, const std::string& notice);
     unsigned int program_ = 0;
     unsigned int vao_ = 0;
     unsigned int vbo_ = 0;

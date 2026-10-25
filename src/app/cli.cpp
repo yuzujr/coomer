@@ -29,10 +29,12 @@ static void printUsage(const char* exe) {
               << "  --help, -h             Show this help message\n"
               << "\n"
               << "Hotkeys:\n"
-              << "  Q or A or Right click: quit\n"
+              << "  Q or Escape: quit\n"
               << "  Hold Left click: pan\n"
               << "  Scroll wheel: zoom (0.05x to 32x)\n"
-              << "  Hold Space: overview\n"
+              << "  Hold Space: overview; click to center the original zoom on a location\n"
+              << "  P: toggle pixel inspection\n"
+              << "  C: copy HEX color while inspecting\n"
               << "  1: reset view\n"
               << "  Hold Ctrl: spotlight (Ctrl + wheel to resize)\n";
 }

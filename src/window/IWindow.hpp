@@ -15,9 +15,11 @@ struct InputState {
     bool keyCtrl = false;
     bool keyShift = false;
     bool keyQ = false;
-    bool keyA = false;
+    bool keyEscape = false;
     bool keySpace = false;
     bool keyOne = false;
+    bool keyP = false;
+    bool keyC = false;
 };
 
 struct WindowConfig {

@@ -5,6 +5,8 @@
 #include <memory>
 
 #include "app/cli.hpp"
+#include "app/Overview.hpp"
+#include "platform/Clipboard.hpp"
 #include "capture/BackendFactory.hpp"
 #include "capture/CaptureTypes.hpp"
 #include "platform/Log.hpp"
@@ -229,8 +231,12 @@ int main(int argc, char** argv) {
     bool prevSpotlight = false;
     bool prevSpace = false;
     bool prevOne = false;
-    bool returningFromOverview = false;
-    CameraState overviewReturnCamera;
+    bool prevP = false;
+    bool prevC = false;
+    bool pixelMode = false;
+    Overview overview;
+    double copyNoticeUntil = 0.0;
+    std::string copyNotice;
     const float homeZoom = camera.zoom;
     const float homePanX = camera.panX;
     const float homePanY = camera.panY;
@@ -240,15 +246,13 @@ int main(int argc, char** argv) {
     float spotlightAnimTo = 0.0f;
 
     double lastTime = nowSeconds();
-    double inspectorLastActive = lastTime;
     float inspectorOpacity = 0.0f;
-    bool inspectorWasAvailable = false;
 
     while (!window->shouldClose()) {
         window->pollEvents();
         InputState input = window->input();
 
-        if (input.keyQ || input.keyA || input.mouseRight) {
+        if (input.keyQ || input.keyEscape) {
             break;
         }
 
@@ -267,17 +271,21 @@ int main(int argc, char** argv) {
         const bool spacePressed = input.keySpace && !prevSpace;
         const bool spaceReleased = !input.keySpace && prevSpace;
         const bool resetPressed = input.keyOne && !prevOne;
+        const bool leftPressed = input.mouseLeft && !prevLeft;
+        const bool copyPressed = input.keyC && !prevC;
+        if (input.keyP && !prevP) pixelMode = !pixelMode;
+        prevP = input.keyP;
+        prevC = input.keyC;
         prevSpace = input.keySpace;
         prevOne = input.keyOne;
 
         if (spacePressed) {
-            overviewReturnCamera = camera;
-            returningFromOverview = false;
+            overview.begin(camera);
             panVelX = 0.0f;
             panVelY = 0.0f;
             zoomVel = 0.0f;
         } else if (spaceReleased) {
-            returningFromOverview = true;
+            overview.release();
         }
 
         if (resetPressed) {
@@ -287,10 +295,14 @@ int main(int argc, char** argv) {
             panVelX = 0.0f;
             panVelY = 0.0f;
             zoomVel = 0.0f;
-            returningFromOverview = false;
+            overview.cancel();
         }
 
-        const bool cameraTransition = input.keySpace || returningFromOverview;
+        if (leftPressed) {
+            overview.locate(camera, cursorX, cursorY, capture.image.w,
+                            capture.image.h, window->width(), window->height());
+        }
+        const bool cameraTransition = overview.active();
 
         if (!cameraTransition && input.mouseLeft) {
             camera.panX += deltaX;
@@ -344,36 +356,8 @@ int main(int argc, char** argv) {
             }
         }
 
-        if (input.keySpace) {
-            const float screenW = static_cast<float>(window->width());
-            const float screenH = static_cast<float>(window->height());
-            const float fitZoom = std::min(
-                screenW / static_cast<float>(capture.image.w),
-                screenH / static_cast<float>(capture.image.h));
-            const float targetZoom = std::clamp(fitZoom * 0.78f, 0.05f, 1.0f);
-            const float targetPanX =
-                (screenW - capture.image.w * targetZoom) * 0.5f;
-            const float targetPanY =
-                (screenH - capture.image.h * targetZoom) * 0.5f;
-            const float blend = 1.0f - std::exp(-12.0f * dt);
-            camera.zoom += (targetZoom - camera.zoom) * blend;
-            camera.panX += (targetPanX - camera.panX) * blend;
-            camera.panY += (targetPanY - camera.panY) * blend;
-        } else if (returningFromOverview) {
-            const float blend = 1.0f - std::exp(-12.0f * dt);
-            camera.zoom +=
-                (overviewReturnCamera.zoom - camera.zoom) * blend;
-            camera.panX +=
-                (overviewReturnCamera.panX - camera.panX) * blend;
-            camera.panY +=
-                (overviewReturnCamera.panY - camera.panY) * blend;
-            if (std::abs(camera.zoom - overviewReturnCamera.zoom) < 0.001f &&
-                std::abs(camera.panX - overviewReturnCamera.panX) < 0.5f &&
-                std::abs(camera.panY - overviewReturnCamera.panY) < 0.5f) {
-                camera = overviewReturnCamera;
-                returningFromOverview = false;
-            }
-        }
+        overview.update(camera, window->width(), window->height(),
+                        capture.image.w, capture.image.h, dt);
 
         camera.screenW = window->width();
         camera.screenH = window->height();
@@ -383,22 +367,20 @@ int main(int argc, char** argv) {
         const float inspectorImageY =
             (cursorY - camera.panY) / camera.zoom;
         const bool inspectorAvailable =
-            camera.zoom >= 6.0f && inspectorImageX >= 0.0f &&
+            pixelMode && inspectorImageX >= 0.0f &&
             inspectorImageY >= 0.0f &&
             inspectorImageX < static_cast<float>(capture.image.w) &&
             inspectorImageY < static_cast<float>(capture.image.h);
-        const bool inspectorActivity =
-            input.wheelDelta != 0.0 || input.mouseLeft ||
-            std::abs(input.deltaX) > 0.01 ||
-            std::abs(input.deltaY) > 0.01 ||
-            (inspectorAvailable && !inspectorWasAvailable);
-        if (inspectorAvailable && inspectorActivity) {
-            inspectorLastActive = now;
+        if (copyPressed && inspectorAvailable) {
+            const std::string color = renderer.colorAt(camera, cursorX, cursorY);
+            const bool copied = !color.empty() && copyToClipboard(color);
+            copyNotice = copied ? "COPIED " + color : "COPY FAILED";
+            copyNoticeUntil = now + 1.2;
+            if (!copied) {
+                LOG_WARN("clipboard copy failed; install wl-clipboard (Wayland) or xclip (X11)");
+            }
         }
-        inspectorWasAvailable = inspectorAvailable;
-
-        const bool showInspector =
-            inspectorAvailable && now - inspectorLastActive < 1.5;
+        const bool showInspector = inspectorAvailable;
         const float inspectorBlend =
             1.0f - std::exp(-(showInspector ? 14.0f : 5.0f) * dt);
         const float inspectorTarget = showInspector ? 1.0f : 0.0f;
@@ -450,7 +432,8 @@ int main(int argc, char** argv) {
         spotlight.tintA = 190.0f / 255.0f;
         prevSpotlight = spotlight.enabled;
 
-        renderer.renderFrame(camera, spotlight, inspectorOpacity);
+        renderer.renderFrame(camera, spotlight, inspectorOpacity, pixelMode,
+                             now < copyNoticeUntil ? copyNotice : "");
         window->swap();
     }
 

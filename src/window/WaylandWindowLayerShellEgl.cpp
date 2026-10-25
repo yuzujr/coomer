@@ -556,12 +556,16 @@ private:
         xkb_keysym_t sym = xkb_state_key_get_one_sym(self->xkbState_, key + 8);
         if (sym == XKB_KEY_q || sym == XKB_KEY_Q) {
             self->input_.keyQ = pressed;
-        } else if (sym == XKB_KEY_a || sym == XKB_KEY_A) {
-            self->input_.keyA = pressed;
+        } else if (sym == XKB_KEY_Escape) {
+            self->input_.keyEscape = pressed;
         } else if (sym == XKB_KEY_space) {
             self->input_.keySpace = pressed;
         } else if (sym == XKB_KEY_1) {
             self->input_.keyOne = pressed;
+        } else if (sym == XKB_KEY_p || sym == XKB_KEY_P) {
+            self->input_.keyP = pressed;
+        } else if (sym == XKB_KEY_c || sym == XKB_KEY_C) {
+            self->input_.keyC = pressed;
         }
     }
 

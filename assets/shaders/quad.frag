@@ -6,6 +6,7 @@ uniform vec2 u_imageSize;
 uniform vec2 u_screenSize;
 uniform vec2 u_pan;
 uniform float u_zoom;
+uniform int u_pixelMode;
 uniform vec2 u_cursor;
 uniform float u_radius;
 uniform vec4 u_tint;
@@ -29,7 +30,7 @@ void main() {
 
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
         color = vec4(0.0, 0.0, 0.0, 1.0);
-    } else if (u_zoom >= 8.0) {
+    } else if (u_pixelMode == 1) {
         ivec2 pixelCoord = ivec2(floor(img.x),
                                  u_imageSize.y - 1.0 - floor(img.y));
         pixelCoord = clamp(pixelCoord, ivec2(0), ivec2(u_imageSize) - 1);
@@ -38,7 +39,7 @@ void main() {
         vec2 withinPixel = fract(img);
         vec2 edgeDistance = min(withinPixel, 1.0 - withinPixel);
         float gridDistance = min(edgeDistance.x, edgeDistance.y);
-        float grid = 1.0 - smoothstep(0.0, 0.7 / u_zoom, gridDistance);
+        float grid = 1.0 - smoothstep(0.0, min(0.7 / u_zoom, 0.12), gridDistance);
         color.rgb = mix(color.rgb, vec3(0.02), grid * 0.38);
     }
 

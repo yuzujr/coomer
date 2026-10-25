@@ -58,21 +58,14 @@
             src = ./.;
 
             nativeBuildInputs = with pkgs; [
-              clang
+              cmake
+              ninja
               pkg-config
               wayland-scanner
             ];
             buildInputs = systemLibs;
 
-            buildPhase = ''
-              make -j$NIX_BUILD_CORES
-            '';
-
-            installPhase = ''
-              runHook preInstall
-              make install PREFIX=$out
-              runHook postInstall
-            '';
+            cmakeFlags = [ "-DBUILD_TESTING=OFF" ];
 
             meta = {
               description = "Screen zoom/magnifier for Wayland and X11";
@@ -100,6 +93,8 @@
                 pkg-config
                 wayland-scanner
                 clang-tools
+                cmake
+                ninja
                 gdb
               ]
               ++ systemLibs;

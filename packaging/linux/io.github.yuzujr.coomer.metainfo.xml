@@ -16,5 +16,16 @@
     </p>
   </description>
   <url type="homepage">https://github.com/yuzujr/coomer</url>
+  <releases>
+    <release version="1.3.0" date="2026-10-25">
+      <description>
+        <ul>
+          <li>Navigate with a temporary overview and click to recenter at the original zoom.</li>
+          <li>Toggle pixel inspection manually and copy the selected pixel's HEX color.</li>
+          <li>Fix interrupted overview returns and simplify exit shortcuts.</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
   <content_rating type="oars-1.1"/>
 </component>

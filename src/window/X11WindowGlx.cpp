@@ -222,12 +222,16 @@ public:
                     KeySym sym = XLookupKeysym(&ev.xkey, 0);
                     if (sym == XK_q || sym == XK_Q) {
                         input_.keyQ = pressed;
-                    } else if (sym == XK_a || sym == XK_A) {
-                        input_.keyA = pressed;
+                    } else if (sym == XK_Escape) {
+                        input_.keyEscape = pressed;
                     } else if (sym == XK_space) {
                         input_.keySpace = pressed;
                     } else if (sym == XK_1) {
                         input_.keyOne = pressed;
+                    } else if (sym == XK_p || sym == XK_P) {
+                        input_.keyP = pressed;
+                    } else if (sym == XK_c || sym == XK_C) {
+                        input_.keyC = pressed;
                     } else if (sym == XK_Control_L || sym == XK_Control_R) {
                         input_.keyCtrl = pressed;
                     } else if (sym == XK_Shift_L || sym == XK_Shift_R) {

@@ -51,6 +51,7 @@ Glyph glyphFor(char c) {
         case 'S': return {0x0f, 0x10, 0x10, 0x0e, 0x01, 0x01, 0x1e};
         case 'T': return {0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04};
         case 'U': return {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e};
+        case 'Y': return {0x11, 0x11, 0x0a, 0x04, 0x04, 0x04, 0x04};
         case 'X': return {0x11, 0x11, 0x0a, 0x04, 0x0a, 0x11, 0x11};
         default: return {};
     }
@@ -133,7 +134,7 @@ std::vector<uint8_t> makeUniformCaptureStatus(int width, int height) {
 
     drawText(pixels, width, height, "CAPTURED SCREEN IS A SINGLE COLOR", 28,
              13, 2, 248, 250, 252);
-    drawText(pixels, width, height, "Q OR RIGHT CLICK TO EXIT", 28, 43, 2,
+    drawText(pixels, width, height, "Q OR ESCAPE TO EXIT", 28, 43, 2,
              147, 197, 253);
     return pixels;
 }
@@ -319,9 +320,23 @@ bool RendererGL::uploadScreenshotTexture(const ImageRGBA& image) {
     return true;
 }
 
+std::string RendererGL::colorAt(const CameraState& camera, float x, float y) const {
+    const float imageX = (x - camera.panX) / camera.zoom;
+    const float imageY = (y - camera.panY) / camera.zoom;
+    if (imagePixels_.empty() || imageX < 0 || imageY < 0 ||
+        imageX >= imageW_ || imageY >= imageH_) return {};
+    const int column = static_cast<int>(std::floor(imageX));
+    const int row = imageH_ - 1 - static_cast<int>(std::floor(imageY));
+    const size_t offset = (static_cast<size_t>(row) * imageW_ + column) * 4;
+    char color[8];
+    std::snprintf(color, sizeof(color), "#%02X%02X%02X",
+                  imagePixels_[offset], imagePixels_[offset + 1], imagePixels_[offset + 2]);
+    return color;
+}
+
 bool RendererGL::updateInspectorTexture(const CameraState& camera,
                                         const SpotlightState& spotlight,
-                                        float opacity) {
+                                        float opacity, const std::string& notice) {
     if (opacity <= 0.001f || imagePixels_.empty()) {
         return false;
     }
@@ -346,8 +361,9 @@ bool RendererGL::updateInspectorTexture(const CameraState& camera,
                   static_cast<unsigned int>(imagePixels_[offset]),
                   static_cast<unsigned int>(imagePixels_[offset + 1]),
                   static_cast<unsigned int>(imagePixels_[offset + 2]));
-    if (inspectorText_ != text) {
-        inspectorText_ = text;
+    const std::string label = notice.empty() ? text : notice;
+    if (inspectorText_ != label) {
+        inspectorText_ = label;
         const std::vector<uint8_t> pixels =
             makeInspectorHud(inspectorText_, inspectorW_, inspectorH_);
         glActiveTexture(GL_TEXTURE2);
@@ -362,7 +378,8 @@ bool RendererGL::updateInspectorTexture(const CameraState& camera,
 
 void RendererGL::renderFrame(const CameraState& camera,
                              const SpotlightState& spotlight,
-                             float inspectorOpacity) {
+                             float inspectorOpacity, bool pixelMode,
+                             const std::string& notice) {
     if (!program_ || !tex_) {
         return;
     }
@@ -374,7 +391,7 @@ void RendererGL::renderFrame(const CameraState& camera,
     glClear(GL_COLOR_BUFFER_BIT);
 
     const bool inspectorVisible =
-        updateInspectorTexture(camera, spotlight, inspectorOpacity);
+        pixelMode && updateInspectorTexture(camera, spotlight, inspectorOpacity, notice);
 
     glUseProgram(program_);
 
@@ -396,6 +413,7 @@ void RendererGL::renderFrame(const CameraState& camera,
     GLint locInspectorOpacity =
         glGetUniformLocation(program_, "u_inspectorOpacity");
 
+    glUniform1i(glGetUniformLocation(program_, "u_pixelMode"), pixelMode ? 1 : 0);
     glUniform1i(locTex, 0);
     glUniform1i(locStatusTex, 1);
     glUniform1i(locInspectorTex, 2);

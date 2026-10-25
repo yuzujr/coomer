@@ -79,6 +79,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libgl1-mesa-dri \
             libwayland-dev \
             wayland-protocols \
             libxkbcommon-dev \
@@ -122,6 +125,11 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           scripts/build-appimage.sh
+
+      - name: Run regression tests
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: ctest --test-dir build/appimage/cmake --output-on-failure
 
       - name: Smoke test AppImage
         env:
@@ -235,6 +243,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4
         with:
@@ -242,41 +252,50 @@ jobs:
           merge-multiple: true
           path: release
 
+      - name: Prepare release notes
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          awk -v version="$RELEASE_VERSION" '
+            $0 == "## " version { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > release-notes.md
+          cat >> release-notes.md <<'NOTES'
+          ### Assets
+
+          - `coomer-v${{ needs.prepare-release.outputs.version }}-x86_64.AppImage`
+          - `coomer-v${{ needs.prepare-release.outputs.version }}-aarch64.AppImage`
+
+          ### Installation
+
+          Download the AppImage for your CPU architecture, make it executable, and run it:
+
+          ```bash
+          chmod +x coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage
+          ./coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage --version
+          ```
+
+          If FUSE is unavailable on your system:
+
+          ```bash
+          APPIMAGE_EXTRACT_AND_RUN=1 ./coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage --version
+          ```
+
+          On NixOS, run it with `appimage-run`.
+
+          See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed documentation.
+          NOTES
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag_name }}
           target_commitish: ${{ github.sha }}
           files: |
             release/*.AppImage
-          body: |
-            ## coomer v${{ needs.prepare-release.outputs.version }}
-
-            Zoomer application for everyone on Linux.
-
-            ### Assets
-
-            - `coomer-v${{ needs.prepare-release.outputs.version }}-x86_64.AppImage`
-            - `coomer-v${{ needs.prepare-release.outputs.version }}-aarch64.AppImage`
-
-            ### Installation
-
-            Download the AppImage for your CPU architecture, make it executable, and run it:
-
-            ```bash
-            chmod +x coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage
-            ./coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage --version
-            ```
-
-            If FUSE is unavailable on your system:
-
-            ```bash
-            APPIMAGE_EXTRACT_AND_RUN=1 ./coomer-v${{ needs.prepare-release.outputs.version }}-<arch>.AppImage --version
-            ```
-
-            On NixOS, run it with `appimage-run`.
-
-            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed documentation.
+          body_path: release-notes.md
           draft: false
           prerelease: false
         env:

@@ -24,9 +24,10 @@ fi
 mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
 rm -rf "$APPDIR"
 
-make clean
-make -j"$(nproc)"
-make DESTDIR="$APPDIR" PREFIX=/usr install
+cmake -S "$ROOT_DIR" -B "$BUILD_DIR/cmake" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build "$BUILD_DIR/cmake" --parallel "$(nproc)"
+DESTDIR="$APPDIR" cmake --install "$BUILD_DIR/cmake"
 
 export APPIMAGE_EXTRACT_AND_RUN=1
 export LINUXDEPLOY_OUTPUT_VERSION="$APP_VERSION"
