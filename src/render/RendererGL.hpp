@@ -31,7 +31,8 @@ struct SpotlightState {
 class RendererGL {
 public:
     bool initGL(std::function<void*(const char*)> loaderProc);
-    bool uploadScreenshotTexture(const ImageRGBA& image);
+    // Transfer a capture with std::move to retain CPU pixels without copying.
+    bool uploadScreenshotTexture(ImageRGBA image);
     void renderFrame(const CameraState& camera,
                      const SpotlightState& spotlight,
                      float inspectorOpacity = 0.0f, bool pixelMode = false,

@@ -5,6 +5,8 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <limits>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -291,20 +293,47 @@ bool RendererGL::initGL(std::function<void*(const char*)> loaderProc) {
     return true;
 }
 
-bool RendererGL::uploadScreenshotTexture(const ImageRGBA& image) {
-    if (image.w <= 0 || image.h <= 0 || image.rgba.empty()) {
-        LOG_ERROR("invalid screenshot image");
+bool RendererGL::uploadScreenshotTexture(ImageRGBA image) {
+    if (image.w <= 0 || image.h <= 0) {
+        LOG_ERROR("invalid screenshot dimensions: %dx%d", image.w, image.h);
         return false;
     }
+    const size_t width = static_cast<size_t>(image.w);
+    const size_t height = static_cast<size_t>(image.h);
+    if (width > std::numeric_limits<size_t>::max() / 4u / height ||
+        image.rgba.size() != width * height * 4u) {
+        LOG_ERROR("screenshot pixel data does not match its dimensions");
+        return false;
+    }
+    GLint maxTextureSize = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+    if (image.w > maxTextureSize || image.h > maxTextureSize) {
+        LOG_ERROR("screenshot %dx%d exceeds the GPU texture limit of %d; "
+                  "select a smaller capture with --monitor or --portal-interactive",
+                  image.w, image.h, maxTextureSize);
+        return false;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, tex_);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image.w, image.h, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, image.rgba.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
+    const GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        LOG_ERROR("failed to upload %dx%d screenshot: OpenGL error 0x%x",
+                  image.w, image.h, error);
+        return false;
+    }
+
     imageW_ = image.w;
     imageH_ = image.h;
-    imagePixels_ = image.rgba;
+    imagePixels_ = std::move(image.rgba);
     uniformImage_ = true;
-    for (size_t i = 4; i < image.rgba.size(); i += 4) {
-        if (image.rgba[i] != image.rgba[0] ||
-            image.rgba[i + 1] != image.rgba[1] ||
-            image.rgba[i + 2] != image.rgba[2] ||
-            image.rgba[i + 3] != image.rgba[3]) {
+    for (size_t i = 4; i < imagePixels_.size(); i += 4) {
+        if (imagePixels_[i] != imagePixels_[0] ||
+            imagePixels_[i + 1] != imagePixels_[1] ||
+            imagePixels_[i + 2] != imagePixels_[2] ||
+            imagePixels_[i + 3] != imagePixels_[3]) {
             uniformImage_ = false;
             break;
         }
@@ -312,11 +341,6 @@ bool RendererGL::uploadScreenshotTexture(const ImageRGBA& image) {
     if (uniformImage_) {
         LOG_INFO("captured screen is a single color; showing status overlay");
     }
-
-    glBindTexture(GL_TEXTURE_2D, tex_);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image.w, image.h, 0, GL_RGBA,
-                 GL_UNSIGNED_BYTE, image.rgba.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
     return true;
 }
 

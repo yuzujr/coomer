@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <utility>
 
 #include "app/cli.hpp"
 #include "app/Overview.hpp"
@@ -192,7 +193,7 @@ int main(int argc, char** argv) {
         closeFileLogging();
         return 1;
     }
-    if (!renderer.uploadScreenshotTexture(capture.image)) {
+    if (!renderer.uploadScreenshotTexture(std::move(capture.image))) {
         LOG_ERROR("failed to upload screenshot texture");
         closeFileLogging();
         return 1;
