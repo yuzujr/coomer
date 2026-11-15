@@ -6,7 +6,7 @@
 #include <utility>
 
 #include "app/cli.hpp"
-#include "app/Overview.hpp"
+#include "app/ViewController.hpp"
 #include "platform/Clipboard.hpp"
 #include "capture/BackendFactory.hpp"
 #include "capture/CaptureTypes.hpp"
@@ -243,24 +243,14 @@ int main(int argc, char** argv) {
         }
     }
 
-    float panVelX = 0.0f;
-    float panVelY = 0.0f;
-    float zoomVel = 0.0f;
-    float spotlightRadiusMulTarget = 1.0f;
     float spotlightRadiusMulCurrent = 1.0f;
-    bool prevLeft = false;
     bool prevSpotlight = false;
-    bool prevSpace = false;
-    bool prevOne = false;
     bool prevP = false;
     bool prevC = false;
     bool pixelMode = false;
-    Overview overview;
+    ViewController view(camera);
     double copyNoticeUntil = 0.0;
     std::string copyNotice;
-    const float homeZoom = camera.zoom;
-    const float homePanX = camera.panX;
-    const float homePanY = camera.panY;
     bool spotlightAnimating = false;
     double spotlightAnimStart = 0.0;
     float spotlightAnimFrom = 0.0f;
@@ -286,102 +276,15 @@ int main(int argc, char** argv) {
 
         float cursorX = static_cast<float>(input.mouseX);
         float cursorY = static_cast<float>(window->height() - input.mouseY);
-        float deltaX = static_cast<float>(input.deltaX);
-        float deltaY = static_cast<float>(-input.deltaY);
 
-        const bool spacePressed = input.keySpace && !prevSpace;
-        const bool spaceReleased = !input.keySpace && prevSpace;
-        const bool resetPressed = input.keyOne && !prevOne;
-        const bool leftPressed = input.mouseLeft && !prevLeft;
         const bool copyPressed = input.keyC && !prevC;
         if (input.keyP && !prevP) pixelMode = !pixelMode;
         prevP = input.keyP;
         prevC = input.keyC;
-        prevSpace = input.keySpace;
-        prevOne = input.keyOne;
-
-        if (spacePressed) {
-            overview.begin(camera);
-            panVelX = 0.0f;
-            panVelY = 0.0f;
-            zoomVel = 0.0f;
-        } else if (spaceReleased) {
-            overview.release();
-        }
-
-        if (resetPressed) {
-            camera.zoom = homeZoom;
-            camera.panX = homePanX;
-            camera.panY = homePanY;
-            panVelX = 0.0f;
-            panVelY = 0.0f;
-            zoomVel = 0.0f;
-            overview.cancel();
-        }
-
-        if (leftPressed) {
-            overview.locate(camera, cursorX, cursorY, capture.image.w,
-                            capture.image.h, window->width(), window->height());
-        }
-        const bool cameraTransition = overview.active();
-
-        if (!cameraTransition && input.mouseLeft) {
-            camera.panX += deltaX;
-            camera.panY += deltaY;
-            if (dt > 0.0f) {
-                panVelX = deltaX / dt;
-                panVelY = deltaY / dt;
-            }
-        } else if (!cameraTransition && !prevLeft) {
-            camera.panX += panVelX * dt;
-            camera.panY += panVelY * dt;
-            float decay = std::exp(-6.0f * dt);
-            panVelX *= decay;
-            panVelY *= decay;
-            // Stop momentum when velocity becomes imperceptible to prevent
-            // subpixel jitter
-            const float minVel = 1.0f;  // px/s
-            if (std::abs(panVelX) < minVel && std::abs(panVelY) < minVel) {
-                panVelX = 0.0f;
-                panVelY = 0.0f;
-            }
-        }
-        prevLeft = input.mouseLeft;
-
-        if (!cameraTransition && input.wheelDelta != 0.0) {
-            float wheel = static_cast<float>(-input.wheelDelta);
-            if (input.keyCtrl) {
-                spotlightRadiusMulTarget += wheel * 0.35f;
-                spotlightRadiusMulTarget =
-                    std::clamp(spotlightRadiusMulTarget, 0.3f, 10.0f);
-            } else {
-                zoomVel += wheel * 2.0f;
-            }
-        }
-
-        if (!cameraTransition && std::abs(zoomVel) > 0.0001f) {
-            float oldZoom = camera.zoom;
-            float factor = std::exp(zoomVel * dt);
-            camera.zoom = std::clamp(camera.zoom * factor, 0.05f, 32.0f);
-            if (camera.zoom != oldZoom) {
-                float ratio = camera.zoom / oldZoom;
-                camera.panX = cursorX - (cursorX - camera.panX) * ratio;
-                camera.panY = cursorY - (cursorY - camera.panY) * ratio;
-            } else {
-                zoomVel = 0.0f;
-            }
-            zoomVel *= std::exp(-6.0f * dt);
-            // Stop zoom momentum when velocity becomes imperceptible
-            if (std::abs(zoomVel) < 0.01f) {
-                zoomVel = 0.0f;
-            }
-        }
-
-        overview.update(camera, window->width(), window->height(),
-                        capture.image.w, capture.image.h, dt);
 
         camera.screenW = window->width();
         camera.screenH = window->height();
+        view.update(camera, input, capture.image.w, capture.image.h, dt);
 
         const float inspectorImageX =
             (cursorX - camera.panX) / camera.zoom;
@@ -410,7 +313,7 @@ int main(int argc, char** argv) {
 
         float follow = 1.0f - std::exp(-14.0f * dt);
         spotlightRadiusMulCurrent +=
-            (spotlightRadiusMulTarget - spotlightRadiusMulCurrent) * follow;
+            (view.spotlightRadiusMultiplier() - spotlightRadiusMulCurrent) * follow;
         spotlightRadiusMulCurrent =
             std::clamp(spotlightRadiusMulCurrent, 0.3f, 10.0f);
 

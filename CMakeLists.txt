@@ -34,6 +34,7 @@ target_link_libraries(coomer_renderer PUBLIC coomer_glad)
 add_executable(coomer
     src/app/main.cpp
     src/app/cli.cpp
+    src/app/ViewController.cpp
     src/capture/BackendAuto.cpp)
 target_compile_definitions(coomer PRIVATE COOMER_VERSION="${PROJECT_VERSION}")
 target_link_libraries(coomer PRIVATE
