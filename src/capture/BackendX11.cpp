@@ -113,6 +113,13 @@ public:
                 }
             }
         }
+        if (monitorNameHint && !captureAll && chosen < 0) {
+            LOG_ERROR("unknown output '%s'; use --list-monitors to see available names",
+                      monitorNameHint->c_str());
+            XRRFreeScreenResources(resources);
+            XCloseDisplay(display);
+            return result;
+        }
         if (chosen < 0 && !monitors.empty()) {
             chosen = 0;
         }

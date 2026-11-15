@@ -534,6 +534,12 @@ public:
                 }
             }
         }
+        if (monitorNameHint && !captureAll && selected < 0) {
+            LOG_ERROR("unknown output '%s'; use --list-monitors to see available names",
+                      monitorNameHint->c_str());
+            cleanupContext(ctx);
+            return result;
+        }
         if (selected < 0 && !ctx.outputs.empty()) {
             selected = 0;
         }

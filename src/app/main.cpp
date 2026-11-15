@@ -128,6 +128,19 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (backend->name() == "portal-screenshot" &&
+        (options.monitor || options.listMonitors)) {
+        LOG_ERROR("portal does not support --monitor or --list-monitors; "
+                  "use --portal-interactive to choose the capture in the system dialog");
+        closeFileLogging();
+        return 1;
+    }
+    if (options.portalInteractive && backend->name() != "portal-screenshot") {
+        LOG_WARN("--portal-interactive has no effect with backend '%s'; "
+                 "use --backend portal to request the system dialog",
+                 backend->name().c_str());
+    }
+
     if (options.listMonitors) {
         auto monitors = backend->listMonitors();
         printMonitorList(backend->name(), monitors);
