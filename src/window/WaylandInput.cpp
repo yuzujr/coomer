@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <cstring>
+#include <string>
 
 #include "platform/Log.hpp"
 
@@ -246,12 +246,12 @@ void WaylandInput::handleKeyboardKeymap(void* data, wl_keyboard*,
         LOG_WARN("failed to map Wayland keyboard layout");
         return;
     }
-    xkb_keymap* keymap = nullptr;
-    if (std::memchr(map, '\0', size)) {
-        keymap = xkb_keymap_new_from_string(self->xkbContext_, map,
-                                            XKB_KEYMAP_FORMAT_TEXT_V1,
-                                            XKB_KEYMAP_COMPILE_NO_FLAGS);
-    }
+    // Some compositors omit the terminator from the advertised mapping size.
+    // Own a terminated copy instead of reading beyond the mapped keymap.
+    const std::string keymapText(map, size);
+    xkb_keymap* keymap = xkb_keymap_new_from_string(
+        self->xkbContext_, keymapText.c_str(), XKB_KEYMAP_FORMAT_TEXT_V1,
+        XKB_KEYMAP_COMPILE_NO_FLAGS);
     munmap(const_cast<char*>(map), size);
     xkb_state* state = keymap ? xkb_state_new(keymap) : nullptr;
     if (!state) {
