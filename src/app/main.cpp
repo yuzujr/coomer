@@ -87,16 +87,23 @@ std::unique_ptr<IWindow> createWindowForSession(const WindowConfig& cfg,
 int main(int argc, char** argv) {
     using namespace coomer;
 
-    initFileLogging();
-
     CliOptions options;
     std::string err;
     if (!parseCli(argc, argv, options, err)) {
         LOG_ERROR("%s", err.c_str());
-        closeFileLogging();
+        std::cerr << "Run '" << argv[0] << " --help' for usage.\n";
         return 1;
     }
+    if (options.action == CliAction::Help) {
+        printUsage(std::cout, argv[0]);
+        return 0;
+    }
+    if (options.action == CliAction::Version) {
+        printVersion(std::cout);
+        return 0;
+    }
 
+    initFileLogging();
     setDebugLogging(options.debug);
 
     auto backend = CreateBackend(options.backend, options.portalInteractive);
