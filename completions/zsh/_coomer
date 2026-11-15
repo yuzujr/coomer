@@ -8,14 +8,17 @@ _coomer_monitors() {
   for i in {1..$#words}; do
     if [[ "${words[i]}" == "--backend" && $((i+1)) -le $#words ]]; then
       backend="${words[i+1]}"
-      break
+    elif [[ "${words[i]}" == --backend=* ]]; then
+      backend="${words[i]#*=}"
     fi
   done
 
-  if [[ -n "$backend" ]]; then
-    mons=(${(f)"$(coomer --backend "$backend" --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"})
+  if [[ "$backend" == portal ]]; then
+    return
+  elif [[ -n "$backend" ]]; then
+    mons=(${(f)"$(command coomer --backend "$backend" --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"})
   else
-    mons=(${(f)"$(coomer --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"})
+    mons=(${(f)"$(command coomer --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"})
   fi
   mons+=(all)
 
@@ -23,8 +26,8 @@ _coomer_monitors() {
 }
 
 _arguments -s \
-  '--backend[Capture backend]:mode:(auto x11 wlr portal)' \
-  '--monitor[Select monitor/output by name (x11/wlr only, use all for all monitors)]:name:_coomer_monitors' \
+  '--backend=[Capture backend]:mode:(auto x11 wlr portal)' \
+  '--monitor=[Select monitor/output by name (x11/wlr only, use all for all monitors)]:name:_coomer_monitors' \
   '--list-monitors[List monitors/outputs visible to the backend]' \
   '--overlay[Wayland layer-shell overlay]' \
   '--portal-interactive[Enable interactive mode for portal]' \

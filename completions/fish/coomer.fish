@@ -1,31 +1,38 @@
 # coomer fish completions
 
+# All values are options or output names, never filenames.
+complete -c coomer -f
+
 function __coomer_backend_from_cmdline
     set -l words (commandline -opc)
+    set -l backend
     for i in (seq 1 (count $words))
-        if test $words[$i] = --backend
+        if test "$words[$i]" = --backend
             set -l j (math $i + 1)
             if test $j -le (count $words)
-                echo $words[$j]
-                return 0
+                set backend "$words[$j]"
             end
+        else if string match -q -- '--backend=*' "$words[$i]"
+            set backend (string replace -- '--backend=' '' "$words[$i]")
         end
     end
-    return 1
+    if test -n "$backend"
+        echo "$backend"
+    end
 end
 
 function __coomer_list_monitors
     set -l backend (__coomer_backend_from_cmdline)
-    echo all
-    if test -n "$backend"
-        coomer --backend $backend --list-monitors 2>/dev/null \
-            | string match -r '^\[[0-9]+\]\s+(\S+)' \
-            | string replace -r '^\[[0-9]+\]\s+(\S+).*' '$1'
-    else
-        coomer --list-monitors 2>/dev/null \
-            | string match -r '^\[[0-9]+\]\s+(\S+)' \
-            | string replace -r '^\[[0-9]+\]\s+(\S+).*' '$1'
+    if test "$backend" = portal
+        return
     end
+    echo all
+    set -l args --list-monitors
+    if test -n "$backend"
+        set -a args --backend "$backend"
+    end
+    command coomer $args 2>/dev/null \
+        | string replace -r -f '^\[[0-9]+\]\s+(\S+).*' '$1'
 end
 
 # --backend <mode>: auto|x11|wlr|portal

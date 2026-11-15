@@ -1,54 +1,62 @@
 # bash completion for coomer
 
 _coomer() {
-  local cur prev
-  cur="${COMP_WORDS[COMP_CWORD]}"
-  prev="${COMP_WORDS[COMP_CWORD-1]}"
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local prev="${COMP_WORDS[COMP_CWORD-1]}"
+  local option="$prev" prefix="" backend="" list i value
+  COMPREPLY=()
 
-  case "$prev" in
+  # Bash can split --option=value into three words at '='.
+  if [[ "$prev" == = && $COMP_CWORD -ge 2 ]]; then
+    option="${COMP_WORDS[COMP_CWORD-2]}"
+  elif [[ "$cur" == --backend=* || "$cur" == --monitor=* ]]; then
+    option="${cur%%=*}"
+    prefix="$option="
+    cur="${cur#*=}"
+  fi
+
+  case "$option" in
     --backend)
       COMPREPLY=( $(compgen -W "auto x11 wlr portal" -- "$cur") )
-      return 0
       ;;
     --monitor)
-      local backend=""
       for ((i=1; i < COMP_CWORD; i++)); do
-        if [[ "${COMP_WORDS[i]}" == "--backend" && $((i+1)) -lt COMP_CWORD ]]; then
-          backend="${COMP_WORDS[i+1]}"
-          break
-        fi
+        case "${COMP_WORDS[i]}" in
+          --backend)
+            value=$((i+1))
+            if [[ "${COMP_WORDS[value]}" == = ]]; then
+              value=$((value+1))
+            fi
+            if ((value < COMP_CWORD)); then
+              backend="${COMP_WORDS[value]}"
+            fi
+            ;;
+          --backend=*) backend="${COMP_WORDS[i]#*=}" ;;
+        esac
       done
 
-      local list
+      # Portal enumeration is unsupported.
+      [[ "$backend" == portal ]] && return 0
       if [[ -n "$backend" ]]; then
-        list="$(coomer --backend "$backend" --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"
+        list="$(command coomer --backend "$backend" --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"
       else
-        list="$(coomer --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"
+        list="$(command coomer --list-monitors 2>/dev/null | awk '/^\[[0-9]+\]/ {print $2}')"
       fi
-
-      list="all $list"
-      COMPREPLY=( $(compgen -W "$list" -- "$cur") )
-      return 0
+      COMPREPLY=( $(compgen -W "all $list" -- "$cur") )
+      ;;
+    *)
+      if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $(compgen -W "
+          --backend --monitor --list-monitors --overlay --portal-interactive
+          --no-spotlight --version --debug --help -h
+        " -- "$cur") )
+      fi
       ;;
   esac
 
-  if [[ "$cur" == -* ]]; then
-    COMPREPLY=( $(compgen -W "
-      --backend
-      --monitor
-      --list-monitors
-      --overlay
-      --portal-interactive
-      --no-spotlight
-      --version
-      --debug
-      --help
-      -h
-    " -- "$cur") )
-    return 0
+  if [[ -n "$prefix" ]]; then
+    COMPREPLY=( "${COMPREPLY[@]/#/$prefix}" )
   fi
-
-  COMPREPLY=()
 }
 
 complete -F _coomer coomer
