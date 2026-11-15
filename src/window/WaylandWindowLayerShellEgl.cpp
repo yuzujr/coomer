@@ -2,10 +2,7 @@
 
 #include <EGL/egl.h>
 #include <poll.h>
-#include <sys/mman.h>
-#include <unistd.h>
 #include <wayland-client.h>
-#include <xkbcommon/xkbcommon.h>
 
 #include <algorithm>
 #include <cstring>
@@ -14,17 +11,11 @@
 #include "fractional-scale-v1-client-protocol.h"
 #include "platform/Log.hpp"
 #include "window/WaylandEglContext.hpp"
+#include "window/WaylandInput.hpp"
 #include "viewporter-client-protocol.h"
 #define namespace wl_namespace
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #undef namespace
-
-#if __has_include(<linux/input-event-codes.h>)
-#include <linux/input-event-codes.h>
-#else
-#define BTN_LEFT 0x110
-#define BTN_RIGHT 0x111
-#endif
 
 namespace coomer {
 
@@ -125,8 +116,6 @@ public:
             LOG_DEBUG("layer-shell: initial frame committed");
         }
 
-        xkbContext_ = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-
         valid_ = true;
     }
 
@@ -140,24 +129,7 @@ public:
         if (viewport_) {
             wp_viewport_destroy(viewport_);
         }
-        if (keyboard_) {
-            wl_keyboard_destroy(keyboard_);
-        }
-        if (pointer_) {
-            wl_pointer_destroy(pointer_);
-        }
-        if (seat_) {
-            wl_seat_destroy(seat_);
-        }
-        if (xkbState_) {
-            xkb_state_unref(xkbState_);
-        }
-        if (xkbKeymap_) {
-            xkb_keymap_unref(xkbKeymap_);
-        }
-        if (xkbContext_) {
-            xkb_context_unref(xkbContext_);
-        }
+        input_.reset();
         egl_.reset();
         if (layerSurface_) {
             zwlr_layer_surface_v1_destroy(layerSurface_);
@@ -190,9 +162,7 @@ public:
     }
 
     void pollEvents() override {
-        input_.deltaX = 0.0;
-        input_.deltaY = 0.0;
-        input_.wheelDelta = 0.0;
+        input_.beginFrame();
 
         if (!display_) {
             shouldClose_ = true;
@@ -213,7 +183,7 @@ public:
         return shouldClose_;
     }
     InputState input() const override {
-        return input_;
+        return input_.state();
     }
     int width() const override {
         return width_;
@@ -253,22 +223,6 @@ private:
         return std::max(1, static_cast<int>((scaled + 60) / 120));
     }
 
-    double surfaceToBufferX(double x) const {
-        if (surfaceWidth_ <= 0) {
-            return x;
-        }
-        return x * static_cast<double>(width_) /
-               static_cast<double>(surfaceWidth_);
-    }
-
-    double surfaceToBufferY(double y) const {
-        if (surfaceHeight_ <= 0) {
-            return y;
-        }
-        return y * static_cast<double>(height_) /
-               static_cast<double>(surfaceHeight_);
-    }
-
     void updateBufferGeometry() {
         surfaceWidth_ = std::max(1, surfaceWidth_);
         surfaceHeight_ = std::max(1, surfaceHeight_);
@@ -283,6 +237,7 @@ private:
 
         width_ = newWidth;
         height_ = newHeight;
+        input_.setGeometry(surfaceWidth_, surfaceHeight_, width_, height_);
         egl_.resize(width_, height_);
     }
 
@@ -294,9 +249,7 @@ private:
                 wl_registry_bind(registry, name, &wl_compositor_interface,
                                  std::min(version, 4u)));
         } else if (std::strcmp(interface, wl_seat_interface.name) == 0) {
-            self->seat_ = static_cast<wl_seat*>(wl_registry_bind(
-                registry, name, &wl_seat_interface, std::min(version, 5u)));
-            wl_seat_add_listener(self->seat_, &seatListener_, self);
+            self->input_.bind(registry, name, version);
         } else if (std::strcmp(interface, zwlr_layer_shell_v1_interface.name) ==
                    0) {
             self->layerShell_ =
@@ -315,7 +268,9 @@ private:
         }
     }
 
-    static void handleGlobalRemove(void*, wl_registry*, uint32_t) {}
+    static void handleGlobalRemove(void* data, wl_registry*, uint32_t name) {
+        static_cast<WaylandWindowLayerShellEgl*>(data)->input_.removeSeat(name);
+    }
 
     static void handleLayerSurfaceConfigure(void* data,
                                             zwlr_layer_surface_v1* surface,
@@ -345,174 +300,6 @@ private:
         self->frameCallback_ = nullptr;
     }
 
-    static void handleSeatCapabilities(void* data, wl_seat* seat,
-                                       uint32_t caps) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        if (caps & WL_SEAT_CAPABILITY_POINTER) {
-            if (!self->pointer_) {
-                self->pointer_ = wl_seat_get_pointer(seat);
-                wl_pointer_add_listener(self->pointer_, &pointerListener_,
-                                        self);
-            }
-        } else if (self->pointer_) {
-            wl_pointer_destroy(self->pointer_);
-            self->pointer_ = nullptr;
-        }
-
-        if (caps & WL_SEAT_CAPABILITY_KEYBOARD) {
-            if (!self->keyboard_) {
-                self->keyboard_ = wl_seat_get_keyboard(seat);
-                wl_keyboard_add_listener(self->keyboard_, &keyboardListener_,
-                                         self);
-            }
-        } else if (self->keyboard_) {
-            wl_keyboard_destroy(self->keyboard_);
-            self->keyboard_ = nullptr;
-        }
-    }
-
-    static void handleSeatName(void*, wl_seat*, const char*) {}
-
-    static void handlePointerEnter(void* data, wl_pointer*, uint32_t,
-                                   wl_surface*, wl_fixed_t sx, wl_fixed_t sy) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        double x = self->surfaceToBufferX(wl_fixed_to_double(sx));
-        double y = self->surfaceToBufferY(wl_fixed_to_double(sy));
-        self->input_.mouseX = x;
-        self->input_.mouseY = y;
-        self->lastMouseX_ = x;
-        self->lastMouseY_ = y;
-        self->hasLastMouse_ = true;
-    }
-
-    static void handlePointerLeave(void* data, wl_pointer*, uint32_t,
-                                   wl_surface*) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        self->hasLastMouse_ = false;
-    }
-
-    static void handlePointerMotion(void* data, wl_pointer*, uint32_t,
-                                    wl_fixed_t sx, wl_fixed_t sy) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        double x = self->surfaceToBufferX(wl_fixed_to_double(sx));
-        double y = self->surfaceToBufferY(wl_fixed_to_double(sy));
-        if (!self->hasLastMouse_) {
-            self->lastMouseX_ = x;
-            self->lastMouseY_ = y;
-            self->hasLastMouse_ = true;
-        }
-        self->input_.deltaX += x - self->lastMouseX_;
-        self->input_.deltaY += y - self->lastMouseY_;
-        self->lastMouseX_ = x;
-        self->lastMouseY_ = y;
-        self->input_.mouseX = x;
-        self->input_.mouseY = y;
-    }
-
-    static void handlePointerButton(void* data, wl_pointer*, uint32_t, uint32_t,
-                                    uint32_t button, uint32_t state) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        bool pressed = (state == WL_POINTER_BUTTON_STATE_PRESSED);
-        if (button == BTN_LEFT) {
-            self->input_.mouseLeft = pressed;
-        } else if (button == BTN_RIGHT) {
-            self->input_.mouseRight = pressed;
-        }
-    }
-
-    static void handlePointerAxis(void* data, wl_pointer*, uint32_t,
-                                  uint32_t axis, wl_fixed_t value) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL) {
-            double v = wl_fixed_to_double(value);
-            self->input_.wheelDelta += v / 120.0;
-        }
-    }
-
-    static void handlePointerFrame(void*, wl_pointer*) {}
-    static void handlePointerAxisSource(void*, wl_pointer*, uint32_t) {}
-    static void handlePointerAxisStop(void*, wl_pointer*, uint32_t, uint32_t) {}
-    static void handlePointerAxisDiscrete(void*, wl_pointer*, uint32_t,
-                                          int32_t) {}
-
-    static void handleKeyboardKeymap(void* data, wl_keyboard*, uint32_t format,
-                                     int fd, uint32_t size) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
-            close(fd);
-            return;
-        }
-        char* map = static_cast<char*>(
-            mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
-        if (map == MAP_FAILED) {
-            close(fd);
-            return;
-        }
-        if (self->xkbKeymap_) {
-            xkb_keymap_unref(self->xkbKeymap_);
-        }
-        if (self->xkbState_) {
-            xkb_state_unref(self->xkbState_);
-        }
-        self->xkbKeymap_ = xkb_keymap_new_from_string(
-            self->xkbContext_, map, XKB_KEYMAP_FORMAT_TEXT_V1,
-            XKB_KEYMAP_COMPILE_NO_FLAGS);
-        munmap(map, size);
-        close(fd);
-        if (!self->xkbKeymap_) {
-            return;
-        }
-        self->xkbState_ = xkb_state_new(self->xkbKeymap_);
-    }
-
-    static void handleKeyboardEnter(void*, wl_keyboard*, uint32_t, wl_surface*,
-                                    wl_array*) {}
-    static void handleKeyboardLeave(void*, wl_keyboard*, uint32_t,
-                                    wl_surface*) {}
-
-    static void handleKeyboardKey(void* data, wl_keyboard*, uint32_t, uint32_t,
-                                  uint32_t key, uint32_t state) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        if (!self->xkbState_) {
-            return;
-        }
-        bool pressed = (state == WL_KEYBOARD_KEY_STATE_PRESSED);
-        xkb_keysym_t sym = xkb_state_key_get_one_sym(self->xkbState_, key + 8);
-        if (sym == XKB_KEY_q || sym == XKB_KEY_Q) {
-            self->input_.keyQ = pressed;
-        } else if (sym == XKB_KEY_Escape) {
-            self->input_.keyEscape = pressed;
-        } else if (sym == XKB_KEY_space) {
-            self->input_.keySpace = pressed;
-        } else if (sym == XKB_KEY_1) {
-            self->input_.keyOne = pressed;
-        } else if (sym == XKB_KEY_p || sym == XKB_KEY_P) {
-            self->input_.keyP = pressed;
-        } else if (sym == XKB_KEY_c || sym == XKB_KEY_C) {
-            self->input_.keyC = pressed;
-        }
-    }
-
-    static void handleKeyboardModifiers(void* data, wl_keyboard*, uint32_t,
-                                        uint32_t depressed, uint32_t latched,
-                                        uint32_t locked, uint32_t group) {
-        auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
-        if (!self->xkbState_) {
-            return;
-        }
-        xkb_state_update_mask(self->xkbState_, depressed, latched, locked, 0, 0,
-                              group);
-        self->input_.keyCtrl =
-            xkb_state_mod_name_is_active(self->xkbState_, XKB_MOD_NAME_CTRL,
-                                         XKB_STATE_MODS_EFFECTIVE) > 0;
-        self->input_.keyShift =
-            xkb_state_mod_name_is_active(self->xkbState_, XKB_MOD_NAME_SHIFT,
-                                         XKB_STATE_MODS_EFFECTIVE) > 0;
-    }
-
-    static void handleKeyboardRepeatInfo(void*, wl_keyboard*, int32_t,
-                                         int32_t) {}
-
     static void handlePreferredScale(void* data, wp_fractional_scale_v1*,
                                      uint32_t scale) {
         auto* self = static_cast<WaylandWindowLayerShellEgl*>(data);
@@ -527,18 +314,6 @@ private:
                                                             handleGlobalRemove};
     static inline zwlr_layer_surface_v1_listener layerSurfaceListener_ = {
         handleLayerSurfaceConfigure, handleLayerSurfaceClosed};
-    static inline wl_seat_listener seatListener_ = {handleSeatCapabilities,
-                                                    handleSeatName};
-    static inline wl_pointer_listener pointerListener_ = {
-        handlePointerEnter,       handlePointerLeave,
-        handlePointerMotion,      handlePointerButton,
-        handlePointerAxis,        handlePointerFrame,
-        handlePointerAxisSource,  handlePointerAxisStop,
-        handlePointerAxisDiscrete};
-    static inline wl_keyboard_listener keyboardListener_ = {
-        handleKeyboardKeymap,    handleKeyboardEnter,
-        handleKeyboardLeave,     handleKeyboardKey,
-        handleKeyboardModifiers, handleKeyboardRepeatInfo};
     static inline wl_callback_listener frameListener_ = {handleFrameDone};
     static inline wp_fractional_scale_v1_listener fractionalScaleListener_ = {
         handlePreferredScale};
@@ -554,17 +329,8 @@ private:
     wl_surface* surface_ = nullptr;
     zwlr_layer_surface_v1* layerSurface_ = nullptr;
 
-    wl_seat* seat_ = nullptr;
-    wl_pointer* pointer_ = nullptr;
-    wl_keyboard* keyboard_ = nullptr;
-
     WaylandEglContext egl_;
-
-    xkb_context* xkbContext_ = nullptr;
-    xkb_keymap* xkbKeymap_ = nullptr;
-    xkb_state* xkbState_ = nullptr;
-
-    InputState input_{};
+    WaylandInput input_;
     bool valid_ = false;
     bool shouldClose_ = false;
     int width_ = 0;
@@ -575,9 +341,6 @@ private:
     bool configured_ = false;
     wl_callback* frameCallback_ = nullptr;
 
-    bool hasLastMouse_ = false;
-    double lastMouseX_ = 0.0;
-    double lastMouseY_ = 0.0;
 };
 
 std::unique_ptr<IWindow> CreateWaylandWindowLayerShellEgl(
