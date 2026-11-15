@@ -1,12 +1,10 @@
 #include "window/WaylandWindowXdgEgl.hpp"
 
 #include <EGL/egl.h>
-#include <EGL/eglext.h>
 #include <poll.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <wayland-client.h>
-#include <wayland-egl.h>
 #include <xkbcommon/xkbcommon.h>
 
 #include <algorithm>
@@ -15,6 +13,7 @@
 
 #include "fractional-scale-v1-client-protocol.h"
 #include "platform/Log.hpp"
+#include "window/WaylandEglContext.hpp"
 #include "viewporter-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 
@@ -81,67 +80,7 @@ public:
         }
         updateBufferGeometry();
 
-        eglWindow_ = wl_egl_window_create(surface_, width_, height_);
-        if (!eglWindow_) {
-            LOG_ERROR("failed to create wl_egl_window");
-            return;
-        }
-
-        eglDisplay_ =
-            eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(display_));
-        if (eglDisplay_ == EGL_NO_DISPLAY) {
-            LOG_ERROR("failed to get EGL display");
-            return;
-        }
-        if (!eglInitialize(eglDisplay_, nullptr, nullptr)) {
-            LOG_ERROR("failed to initialize EGL");
-            return;
-        }
-        eglBindAPI(EGL_OPENGL_API);
-
-        EGLint attribs[] = {EGL_SURFACE_TYPE,
-                            EGL_WINDOW_BIT,
-                            EGL_RED_SIZE,
-                            8,
-                            EGL_GREEN_SIZE,
-                            8,
-                            EGL_BLUE_SIZE,
-                            8,
-                            EGL_ALPHA_SIZE,
-                            8,
-                            EGL_RENDERABLE_TYPE,
-                            EGL_OPENGL_BIT,
-                            EGL_NONE};
-
-        EGLConfig eglConfig = nullptr;
-        EGLint numConfigs = 0;
-        if (!eglChooseConfig(eglDisplay_, attribs, &eglConfig, 1,
-                             &numConfigs) ||
-            numConfigs == 0) {
-            LOG_ERROR("failed to choose EGL config");
-            return;
-        }
-
-        EGLint ctxAttribs[] = {EGL_CONTEXT_MAJOR_VERSION, 3,
-                               EGL_CONTEXT_MINOR_VERSION, 3, EGL_NONE};
-        eglContext_ = eglCreateContext(eglDisplay_, eglConfig, EGL_NO_CONTEXT,
-                                       ctxAttribs);
-        if (eglContext_ == EGL_NO_CONTEXT) {
-            LOG_ERROR("failed to create EGL context");
-            return;
-        }
-
-        eglSurface_ = eglCreateWindowSurface(
-            eglDisplay_, eglConfig,
-            reinterpret_cast<EGLNativeWindowType>(eglWindow_), nullptr);
-        if (eglSurface_ == EGL_NO_SURFACE) {
-            LOG_ERROR("failed to create EGL window surface");
-            return;
-        }
-
-        if (!eglMakeCurrent(eglDisplay_, eglSurface_, eglSurface_,
-                            eglContext_)) {
-            LOG_ERROR("eglMakeCurrent failed");
+        if (!egl_.init(display_, surface_, width_, height_)) {
             return;
         }
 
@@ -153,7 +92,7 @@ public:
 
             // Swap without clearing to avoid visible flash before screenshot
             // renders
-            if (!eglSwapBuffers(eglDisplay_, eglSurface_)) {
+            if (!egl_.swap()) {
                 EGLint err = eglGetError();
                 LOG_WARN("xdg-shell initial eglSwapBuffers failed: 0x%x", err);
             }
@@ -193,20 +132,7 @@ public:
         if (xkbContext_) {
             xkb_context_unref(xkbContext_);
         }
-        if (eglDisplay_ != EGL_NO_DISPLAY) {
-            eglMakeCurrent(eglDisplay_, EGL_NO_SURFACE, EGL_NO_SURFACE,
-                           EGL_NO_CONTEXT);
-            if (eglContext_ != EGL_NO_CONTEXT) {
-                eglDestroyContext(eglDisplay_, eglContext_);
-            }
-            if (eglSurface_ != EGL_NO_SURFACE) {
-                eglDestroySurface(eglDisplay_, eglSurface_);
-            }
-            eglTerminate(eglDisplay_);
-        }
-        if (eglWindow_) {
-            wl_egl_window_destroy(eglWindow_);
-        }
+        egl_.reset();
         if (xdgToplevel_) {
             xdg_toplevel_destroy(xdgToplevel_);
         }
@@ -274,7 +200,7 @@ public:
     }
 
     void swap() override {
-        if (eglDisplay_ != EGL_NO_DISPLAY && eglSurface_ != EGL_NO_SURFACE) {
+        if (valid_) {
             if (surface_) {
                 wl_surface_damage_buffer(surface_, 0, 0, width_, height_);
                 if (!frameCallback_) {
@@ -283,7 +209,7 @@ public:
                                              this);
                 }
             }
-            if (!eglSwapBuffers(eglDisplay_, eglSurface_)) {
+            if (!egl_.swap()) {
                 EGLint err = eglGetError();
                 LOG_WARN("xdg-shell eglSwapBuffers failed: 0x%x", err);
             }
@@ -294,7 +220,7 @@ public:
     }
 
     void* glGetProcAddress(const char* name) override {
-        return reinterpret_cast<void*>(eglGetProcAddress(name));
+        return WaylandEglContext::getProcAddress(name);
     }
 
 private:
@@ -334,9 +260,7 @@ private:
 
         width_ = newWidth;
         height_ = newHeight;
-        if (eglWindow_) {
-            wl_egl_window_resize(eglWindow_, width_, height_, 0, 0);
-        }
+        egl_.resize(width_, height_);
     }
 
     static void handleGlobal(void* data, wl_registry* registry, uint32_t name,
@@ -627,10 +551,7 @@ private:
     wl_pointer* pointer_ = nullptr;
     wl_keyboard* keyboard_ = nullptr;
 
-    wl_egl_window* eglWindow_ = nullptr;
-    EGLDisplay eglDisplay_ = EGL_NO_DISPLAY;
-    EGLContext eglContext_ = EGL_NO_CONTEXT;
-    EGLSurface eglSurface_ = EGL_NO_SURFACE;
+    WaylandEglContext egl_;
 
     xkb_context* xkbContext_ = nullptr;
     xkb_keymap* xkbKeymap_ = nullptr;

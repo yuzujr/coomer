@@ -77,6 +77,7 @@ if(COOMER_WAYLAND)
     target_link_libraries(coomer_protocols PUBLIC PkgConfig::WAYLAND)
     target_sources(coomer PRIVATE
         src/capture/BackendWlrScreencopy.cpp
+        src/window/WaylandEglContext.cpp
         src/window/WaylandWindowXdgEgl.cpp
         src/window/WaylandWindowLayerShellEgl.cpp)
     target_compile_definitions(coomer PRIVATE COOMER_HAS_WAYLAND)
