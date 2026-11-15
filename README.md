@@ -1,6 +1,6 @@
 # coomer
 
-Zoomer application for everyone on Linux.
+A screen magnifier for Linux. Capture your screen once, then pan, zoom and inspect pixels.
 
 ![](./demo.gif)
 
@@ -18,7 +18,11 @@ Zoomer application for everyone on Linux.
 
 Download the x86_64 or aarch64 AppImage from [releases](https://github.com/yuzujr/coomer/releases), make it executable, and run it. See [release notes](CHANGELOG.md).
 
-Without FUSE, use `APPIMAGE_EXTRACT_AND_RUN=1`. On NixOS, use `appimage-run`.
+Run the downloaded file with `--help` to check the available options. Without
+FUSE, use `APPIMAGE_EXTRACT_AND_RUN=1`. On NixOS, use `appimage-run`.
+
+Color copying also needs `wl-clipboard` on Wayland or `xclip` on X11, installed
+separately and available in `PATH`. Other magnifier controls work without them.
 
 ### Arch Linux (AUR)
 
@@ -51,12 +55,17 @@ environment.systemPackages = [
 
 ```bash
 coomer
+coomer --list-monitors               # Find available output names (X11/wlr)
 coomer --overlay                     # Wayland overlay
 coomer --monitor HDMI-A-1             # Capture one output (X11/wlr)
 coomer --monitor all                  # Capture all outputs (X11/wlr)
-coomer --portal-interactive           # Choose capture mode in the portal dialog
+coomer --backend portal --portal-interactive  # Request the system capture dialog
 coomer --help                        # All options
 ```
+
+The captured image stays frozen while you inspect it. Quit and run coomer
+again to take a new capture. Options with values accept both `--backend wlr`
+and `--backend=wlr` syntax.
 
 | Input | Action |
 | --- | --- |
@@ -75,10 +84,21 @@ Pixel inspection is off by default. Color copying requires `wl-clipboard` on
 Wayland or `xclip` on X11. With `--monitor all`, pixel values refer to the
 composited capture, which may be resampled on scaled outputs.
 
-On Wayland, automatic capture tries wlr-screencopy, then portal, then X11 if
-available. On X11, it uses X11. Override with `--backend wlr|portal|x11`.
-The portal does not support `--monitor`; use `--portal-interactive` to select
-capture mode.
+On Wayland, automatic capture selects the first available backend in this
+order: wlr-screencopy, portal, X11. On X11, it uses X11. An error during the
+capture stops the application; use `--backend wlr|portal|x11` to choose another
+backend explicitly.
+
+| Capture backend | Select/list outputs | Capture selection |
+| --- | --- | --- |
+| X11 | `--monitor`, `--list-monitors` | First output by default; `all` for the desktop |
+| wlr-screencopy | `--monitor`, `--list-monitors` | First output by default; `all` for the desktop |
+| Portal | System dialog | Use `--backend portal --portal-interactive` |
+
+Portal does not support `--monitor` or `--list-monitors`. `--portal-interactive`
+only affects the portal backend; pair it with `--backend portal` to request the
+dialog even when wlr-screencopy is available. A misspelled output name reports
+an error; copy a name from `--list-monitors`.
 
 The wlr backend captures the first output by default. In niri, capture the
 focused output with this command (requires `jq`):
@@ -88,6 +108,12 @@ coomer --overlay --monitor "$(niri msg -j focused-output | jq -r '.name')"
 ```
 
 `--monitor` selects the capture; the compositor chooses the overlay output.
+If layer-shell is unavailable, `--overlay` falls back to an xdg-shell fullscreen
+window. Wayland fullscreen windows use the app ID `coomer` for desktop icons
+and compositor rules.
+
+For capture, display scaling, clipboard and AppImage issues, see
+[troubleshooting](docs/troubleshooting.md).
 
 ## Build and Development
 
@@ -115,7 +141,16 @@ sudo cmake --install build --prefix /usr
 All backends are enabled by default. Disable them with `-DCOOMER_X11=OFF`,
 `-DCOOMER_WAYLAND=OFF` or `-DCOOMER_PORTAL=OFF` when configuring.
 
-CMake generates `build/compile_commands.json` for clangd automatically.
+CMake generates `build/compile_commands.json` for clangd automatically. System
+installation also installs the desktop entry, icon and Bash, fish and Zsh
+completions. For a user-local installation, configure with
+`-DCMAKE_INSTALL_PREFIX="$HOME/.local"`, build, then run `cmake --install build`
+without `sudo`. Ensure `$HOME/.local/bin` is in `PATH`.
+
+Navigation and momentum live in `src/app/ViewController.*`; the main loop
+coordinates capture, windows and rendering. Both Wayland window types share
+`src/window/WaylandInput.*` and `src/window/WaylandEglContext.*` for input and
+EGL resource ownership.
 
 Run tests with:
 

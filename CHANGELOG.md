@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Share Wayland input and EGL management between fullscreen and overlay windows.
+- Keep camera navigation and interaction state in a separate view controller.
+- Transfer screenshot pixels into the renderer without retaining an extra CPU copy.
+- Print help to standard output, accept `--option=value`, and explain invalid option combinations.
+- Improve output-name completion and support backend selection with `=`.
+- Document backend selection, installation and troubleshooting.
+
+### Fixed
+
+- Clear held input on Wayland focus loss and input-device removal.
+- Match key releases even when modifiers or keyboard layout change.
+- Accept keyboard maps whose advertised size omits the trailing terminator.
+- Report unknown output names instead of capturing a different monitor.
+- Set the Wayland app ID for desktop integration.
+- Retain the portal request path after releasing its D-Bus reply.
+- Report invalid image buffers, GPU texture limits and screenshot upload errors.
+
 ## 1.3.0
 
 ### Added
