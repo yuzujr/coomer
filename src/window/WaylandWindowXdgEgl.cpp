@@ -61,6 +61,7 @@ public:
         xdgToplevel_ = xdg_surface_get_toplevel(xdgSurface_);
         xdg_toplevel_add_listener(xdgToplevel_, &xdgToplevelListener_, this);
         xdg_toplevel_set_title(xdgToplevel_, config.title.c_str());
+        xdg_toplevel_set_app_id(xdgToplevel_, "coomer");
         xdg_toplevel_set_fullscreen(xdgToplevel_, nullptr);
 
         wl_surface_commit(surface_);
