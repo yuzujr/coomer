@@ -191,13 +191,15 @@ public:
             dbus_connection_unref(conn);
             return result;
         }
+        // The object path returned by get_args belongs to reply.
+        const std::string handlePath(handle);
         dbus_message_unref(reply);
 
         std::string matchRule =
             std::string(
                 "type='signal',interface='org.freedesktop.portal.Request',"
                 "member='Response',path='") +
-            handle + "'";
+            handlePath + "'";
         dbus_bus_add_match(conn, matchRule.c_str(), &err);
         dbus_connection_flush(conn);
         if (dbus_error_is_set(&err)) {
@@ -212,11 +214,16 @@ public:
         bool gotResponse = false;
         const auto start = std::chrono::steady_clock::now();
         while (!gotResponse) {
-            dbus_connection_read_write(conn, 100);
+            if (!dbus_connection_read_write(conn, 100)) {
+                LOG_ERROR("portal: session bus disconnected while waiting for screenshot");
+                dbus_connection_unref(conn);
+                return result;
+            }
             DBusMessage* signal = dbus_connection_pop_message(conn);
             if (signal) {
                 if (dbus_message_is_signal(
-                        signal, "org.freedesktop.portal.Request", "Response")) {
+                        signal, "org.freedesktop.portal.Request", "Response") &&
+                    dbus_message_has_path(signal, handlePath.c_str())) {
                     gotResponse = parseResponse(signal, uri);
                     dbus_message_unref(signal);
                     if (!gotResponse) {
