@@ -17,6 +17,18 @@
   </description>
   <url type="homepage">https://github.com/yuzujr/coomer</url>
   <releases>
+    <release version="1.3.1" date="2026-11-16">
+      <description>
+        <ul>
+          <li>Improve command-line help, option validation and support for --option=value.</li>
+          <li>Fix held input after Wayland focus changes and keyboard layout updates.</li>
+          <li>Report unknown output names instead of capturing a different monitor.</li>
+          <li>Reduce screenshot memory use and report image upload failures.</li>
+          <li>Fix portal request lifetime and Wayland desktop integration.</li>
+          <li>Improve shell completion, installation guidance and troubleshooting.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-10-25">
       <description>
         <ul>
